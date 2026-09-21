@@ -1,12 +1,16 @@
 import { redirect } from "next/navigation";
 
 import { ProfileForm } from "@/features/profile/profile-form";
+import { parseProfileSuggestionIntent } from "@/features/profile/profile-suggestion-intent";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/server/auth/get-current-user";
+import { getProfileContext } from "@/server/app-shell/app-shell-context";
 import { createProfileRepository } from "@/server/repositories/profile-repository";
 import { createProfileService } from "@/server/services/profile-service";
 
-export default async function ProfilePage() {
+type ProfilePageProps = { searchParams: Promise<{ suggestion?: string | string[]; concern?: string | string[]; area?: string | string[] }> };
+
+export default async function ProfilePage({ searchParams }: ProfilePageProps) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -16,22 +20,21 @@ export default async function ProfilePage() {
   const supabase = await createClient();
   const repository = createProfileRepository(supabase);
   const service = createProfileService(repository);
-  const profile = await service.getProfile(user.id);
+  const shell = await getProfileContext(user.id);
+  const profile = shell.profile ?? await service.getProfile(user.id);
+  const suggestionIntent = parseProfileSuggestionIntent(await searchParams);
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8">
-        <p className="text-sm font-medium text-muted-foreground">
-          Beauty Profile
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">
+    <main className="beauty-ambient-page beauty-ambient-profile beauty-page min-h-svh">
+      <div className="beauty-page-header">
+        <h1 className="beauty-page-title">
           我的皮肤档案
         </h1>
-        <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
-          记录长期、主动填写的肤质与护肤偏好。这里不进行 AI 或图片皮肤分析。
+        <p className="beauty-copy mt-3">
+          记录你平时的皮肤基线和长期关注；每日波动请前往皮肤状态记录。
         </p>
       </div>
-      <ProfileForm initialProfile={profile} />
+      <ProfileForm initialProfile={profile} suggestionIntent={suggestionIntent} />
     </main>
   );
 }

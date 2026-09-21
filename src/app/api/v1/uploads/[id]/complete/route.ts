@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/server/auth/get-current-user";
 import { createProductImageStorage } from "@/server/integrations/storage/product-images";
 import { createProductRepository } from "@/server/repositories/product-repository";
+import { createOwnedProductRepository } from "@/server/repositories/owned-product-repository";
 import { createUploadRepository } from "@/server/repositories/upload-repository";
 import {
   UploadNotFoundError,
@@ -35,6 +36,7 @@ async function getRequestContext() {
       createUploadRepository(supabase),
       createProductRepository(supabase),
       createProductImageStorage(supabase),
+      createOwnedProductRepository(supabase),
     ),
   };
 }

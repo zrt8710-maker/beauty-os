@@ -12,7 +12,9 @@ import { createWeatherRepository } from "@/server/repositories/weather-repositor
 import {
   WeatherLocationRequiredError,
   createWeatherService,
+  toWeatherData,
 } from "@/server/services/weather-service";
+import { getOrRefreshTodayWeather } from "@/server/services/today-weather-service";
 
 const noStoreHeaders = { "Cache-Control": "private, no-store" };
 
@@ -34,14 +36,35 @@ async function getRequestContext() {
   if (!user) return null;
 
   const supabase = await createClient();
+  const weather = createWeatherRepository(supabase);
+  const profiles = createProfileRepository(supabase);
+  const provider = createOpenMeteoProvider();
+
   return {
     user,
-    service: createWeatherService(
-      createWeatherRepository(supabase),
-      createProfileRepository(supabase),
-      createOpenMeteoProvider(),
-    ),
+    weather,
+    profiles,
+    provider,
+    service: createWeatherService(weather, profiles, provider),
   };
+}
+
+function logWeatherReadFailure(error: unknown) {
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause : null;
+  const zodIssues = error instanceof ZodError
+    ? error.issues.map((issue) => ({ path: issue.path.join("."), code: issue.code }))
+    : undefined;
+  console.error("[weather] today snapshot read failed", {
+    errorName: error instanceof Error ? error.name : typeof error,
+    causeName: cause?.name,
+    zodIssues,
+    ...(process.env.NODE_ENV === "development"
+      ? {
+          errorMessage: error instanceof Error ? error.message : "Unknown weather read failure",
+          causeMessage: cause?.message,
+        }
+      : {}),
+  });
 }
 
 export async function GET() {
@@ -52,9 +75,15 @@ export async function GET() {
   }
 
   try {
-    const weather = await context.service.getLatestWeather(context.user.id);
-    return NextResponse.json({ data: weather }, { headers: noStoreHeaders });
-  } catch {
+    const weather = await getOrRefreshTodayWeather({
+      userId: context.user.id,
+      profiles: context.profiles,
+      weather: context.weather,
+      provider: context.provider,
+    });
+    return NextResponse.json({ data: weather ? toWeatherData(weather) : null }, { headers: noStoreHeaders });
+  } catch (error) {
+    logWeatherReadFailure(error);
     return errorResponse(500, "WEATHER_READ_FAILED", "无法读取天气数据。");
   }
 }

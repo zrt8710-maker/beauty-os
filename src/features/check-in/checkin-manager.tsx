@@ -1,200 +1,104 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import {
-  skinCheckinSchema,
-  type SkinCheckin,
-  type SkinCheckinInput,
-} from "@/schemas/checkin";
-import type { WeatherData } from "@/schemas/weather";
-import { WeatherCard } from "@/features/check-in/weather-card";
-
-const levelLabels = ["无", "轻微", "一般", "明显", "严重"];
+import { skinCheckinSchema, type SkinCheckin, type SkinCheckinInput } from "@/schemas/checkin";
+import type { RecentSkinTrend } from "@/domain/recent-skin-trend";
+import { buildDailyFallbackNarration } from "@/features/check-in/daily-skin-narration-fallback";
+import { DailySkinNarrationSection } from "@/features/check-in/daily-skin-narration-section";
+import type { Profile } from "@/schemas/profile";
+import { DailySkinEditView } from "@/features/check-in/daily-skin-edit-view";
+import { buildSkinHistoryCompression, type SkinHistoryCompression } from "@/features/check-in/skin-history-compression-model";
 
 type CheckinDraft = SkinCheckinInput;
 
-export function CheckinManager({
-  initialCheckins,
-  initialWeather,
-  today,
-}: {
-  initialCheckins: SkinCheckin[];
-  initialWeather: WeatherData | null;
-  today: string;
-}) {
-  const todayCheckin = initialCheckins.find(
-    (checkin) => checkin.recorded_date === today,
-  );
+export function CheckinManager({ initialCheckins, today, selectedDate = today, recentTrends = [], profile = null, history, dailyNarrations = {} }: { initialCheckins: SkinCheckin[]; today: string; selectedDate?: string; recentTrends?: RecentSkinTrend[]; profile?: Pick<Profile, "long_term_skin_baseline" | "skin_type"> | null; history: SkinHistoryCompression; dailyNarrations?: Record<string, string> }) {
   const [checkins, setCheckins] = useState(initialCheckins);
-  const [draft, setDraft] = useState<CheckinDraft>(
-    todayCheckin
-      ? toDraft(todayCheckin)
-      : {
-          dryness_level: 0,
-          oiliness_level: 0,
-          redness_level: 0,
-          sensitivity_level: 0,
-          acne_level: 0,
-          notes: null,
-          recorded_date: today,
-        },
-  );
+  const [draft, setDraft] = useState<CheckinDraft>(() => toDraft(initialCheckins.find((item) => item.recorded_date === today), today));
+  const [editorOpen, setEditorOpen] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
   const [message, setMessage] = useState("");
+  const todayCheckin = checkins.find((checkin) => checkin.recorded_date === selectedDate);
+  const effectiveHistory = profile ? mergeServerNarration(buildSkinHistoryCompression({ checkins, profile, recentTrends, today }), history) : history;
 
-  async function saveCheckin() {
-    setStatus("saving");
-    setMessage("");
-
-    try {
-      const response = await fetch("/api/v1/skin-checkins", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draft),
-      });
-      const result: unknown = await response.json();
-      const saved = parseData(result);
-
-      if (!response.ok || !saved) throw new Error("SAVE_FAILED");
-
-      setCheckins((current) =>
-        [saved, ...current.filter((item) => item.id !== saved.id)].sort((a, b) =>
-          b.recorded_date.localeCompare(a.recorded_date),
-        ),
-      );
-      setStatus("idle");
-      setMessage("皮肤状态已保存；同一天再次保存会更新原记录。");
-    } catch {
-      setStatus("error");
-      setMessage("保存失败，请检查等级和日期后重试。");
-    }
+  function openEditor(checkin?: SkinCheckin) {
+    setDraft(toDraft(checkin ?? todayCheckin, checkin?.recorded_date ?? today));
+    setStatus("idle"); setMessage(""); setEditorOpen(true);
   }
+  async function saveCheckin() {
+    setStatus("saving"); setMessage("");
+    try {
+      const response = await fetch("/api/v1/skin-checkins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+      const saved = parseData(await response.json());
+      if (!response.ok || !saved) throw new Error("SAVE_FAILED");
+      setCheckins((current) => [saved, ...current.filter((item) => item.id !== saved.id)].sort((a, b) => b.recorded_date.localeCompare(a.recorded_date)));
+      // Weekly narration runs in the server-rendered history path. Refresh only
+      // after a successful write so a newly completed batch receives it.
+      if (typeof window !== "undefined") window.setTimeout(() => window.location.reload(), 0);
+      setEditorOpen(false); setStatus("idle"); setMessage(`${saved.recorded_date} 的皮肤状态已保存。`);
+    } catch { setStatus("error"); setMessage("保存失败，请检查记录后重试。"); }
+  }
+  if (editorOpen) return <DailySkinEditView draft={draft} message={message} onCancel={() => setEditorOpen(false)} onChange={setDraft} onSave={saveCheckin} profile={profile} saving={status === "saving"} />;
+  const narration = todayCheckin ? dailyNarrations[todayCheckin.recorded_date] ?? buildDailyFallbackNarration(todayCheckin) : null;
+  return <div className="beauty-journal">{narration ? <DailySkinNarrationSection date={selectedDate} message={message} narration={narration} onAdjust={() => openEditor()} /> : <TodayStatusSection checkin={todayCheckin} message={message} onManual={() => openEditor()} today={selectedDate} />}<RecentStatusSection history={effectiveHistory} weeklyProgressDays={effectiveHistory.unsettledDaily.length} /></div>;
+}
 
+
+function TodayStatusSection({ checkin, message, onManual, today }: { checkin?: SkinCheckin; message: string; onManual: () => void; today: string }) {
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border bg-card p-6">
-        <h2 className="text-lg font-semibold">填写皮肤状态</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          0 表示没有，4 表示严重。这是主观日常记录，不是医疗诊断。
-        </p>
+    <section>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 className="text-base font-semibold">今天 <span className="text-sm font-normal text-muted-foreground">· {today}</span></h2>
+        <span className="text-xs text-muted-foreground">{checkin ? "已记录" : "尚未记录"}</span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {!checkin ? <Button className="w-full sm:w-auto" nativeButton={false} render={<Link href="/app" />} size="sm">去首页记录</Button> : null}
+        <Button className="w-full sm:w-auto" onClick={onManual} size="sm" type="button" variant="secondary">{checkin ? "调整今日状态" : "手动记录"}</Button>
+      </div>
+      </div>
+      {!checkin ? <p className="beauty-helper mt-3">你可以从首页自然记录今天的感受，也可以在这里手动补充。</p> : null}
+      {message ? <p aria-live="polite" className="mt-3 text-sm text-muted-foreground">{message}</p> : null}
+    </section>
+  );
+}
 
-        <div className="mt-6 grid gap-5 sm:grid-cols-2">
-          <Field label="记录日期">
-            <input
-              className={inputClassName}
-              onChange={(event) => setDraft((current) => ({ ...current, recorded_date: event.target.value }))}
-              type="date"
-              value={draft.recorded_date}
-            />
-          </Field>
-          <div className="hidden sm:block" />
-          <LevelField label="干燥" onChange={(value) => setDraft((current) => ({ ...current, dryness_level: value }))} value={draft.dryness_level} />
-          <LevelField label="出油" onChange={(value) => setDraft((current) => ({ ...current, oiliness_level: value }))} value={draft.oiliness_level} />
-          <LevelField label="泛红" onChange={(value) => setDraft((current) => ({ ...current, redness_level: value }))} value={draft.redness_level} />
-          <LevelField label="敏感" onChange={(value) => setDraft((current) => ({ ...current, sensitivity_level: value }))} value={draft.sensitivity_level} />
-          <LevelField label="痘痘" onChange={(value) => setDraft((current) => ({ ...current, acne_level: value }))} value={draft.acne_level} />
-          <Field label="备注（可选）">
-            <textarea
-              className={`${inputClassName} min-h-24 py-3`}
-              maxLength={2000}
-              onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value.trim() ? event.target.value : null }))}
-              placeholder="例如：洗脸后紧绷，鼻翼略红"
-              value={draft.notes ?? ""}
-            />
-          </Field>
+
+function RecentStatusSection({ history, weeklyProgressDays }: { history: SkinHistoryCompression; weeklyProgressDays: number }) {
+  return (
+    <div className="beauty-section-major">
+      <section>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="beauty-section-title">最近七天</h2>
+          {weeklyProgressDays ? <p className="beauty-meta">已记录 {weeklyProgressDays} / 7 天</p> : null}
         </div>
-
-        <div className="mt-6 flex items-center gap-4">
-          <Button disabled={status === "saving"} onClick={saveCheckin} type="button">
-            {status === "saving" ? "保存中…" : "保存今日记录"}
-          </Button>
-          <p
-            aria-live="polite"
-            className={status === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}
-          >
-            {message}
-          </p>
-        </div>
-      </section>
-
-      <WeatherCard initialWeather={initialWeather} />
-
-      <section className="rounded-2xl border bg-card p-6">
-        <h2 className="text-lg font-semibold">最近记录</h2>
-        {checkins.length === 0 ? (
-          <p className="mt-4 text-sm text-muted-foreground">还没有皮肤状态记录。</p>
-        ) : (
-          <ul className="mt-5 space-y-3">
-            {checkins.map((checkin) => (
-              <li className="rounded-xl border p-4" key={checkin.id}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="font-medium">{checkin.recorded_date}</p>
-                  <p className="text-xs text-muted-foreground">
-                    干燥 {checkin.dryness_level} · 出油 {checkin.oiliness_level} · 泛红 {checkin.redness_level} · 敏感 {checkin.sensitivity_level} · 痘痘 {checkin.acne_level}
-                  </p>
-                </div>
-                {checkin.notes ? <p className="mt-2 text-sm text-muted-foreground">{checkin.notes}</p> : null}
+        {history.unsettledDaily.length ? (
+          <ul className="mt-4 max-w-3xl divide-y divide-border/70 border-y border-border/70">
+            {history.unsettledDaily.map((entry) => (
+              <li className="grid gap-1 py-5 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-6" key={entry.date}>
+                <p className="font-semibold tracking-[-0.01em]">{formatDailyDate(entry.date)}</p>
+                <p className="text-sm leading-6 text-muted-foreground">{entry.summary}</p>
               </li>
             ))}
           </ul>
-        )}
+        ) : <p className="beauty-helper mt-4">还没有最近七天的记录。新的每日状态会按日期出现在这里。</p>}
+      </section>
+      <section className="mt-10">
+        <h2 className="beauty-section-title">阶段总结</h2>
+        <div className="mt-5 max-w-3xl divide-y divide-border/70 border-y border-border/70">
+          <SummarySection emptyDescription="完成 7 天记录后，这里会生成本周皮肤总结。" summaries={history.weeklySummaries.map((summary) => ({ period: formatDateRange(summary.period.start, summary.period.end), overall: summary.overall }))} title="周总结" />
+          <SummarySection emptyDescription="完成本月记录后，这里会生成月度皮肤总结。" summaries={history.monthlySummaries.map((summary) => ({ period: formatDateRange(summary.period.start, summary.period.end), overall: summary.overall }))} title="月总结" />
+        </div>
       </section>
     </div>
   );
 }
-
-function LevelField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (value: number) => void;
-}) {
-  return (
-    <Field label={label}>
-      <select
-        className={inputClassName}
-        onChange={(event) => onChange(Number(event.target.value))}
-        value={value}
-      >
-        {levelLabels.map((level, index) => (
-          <option key={level} value={index}>{index} — {level}</option>
-        ))}
-      </select>
-    </Field>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block space-y-2 text-sm font-medium">
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function toDraft(checkin: SkinCheckin): CheckinDraft {
-  return {
-    dryness_level: checkin.dryness_level,
-    oiliness_level: checkin.oiliness_level,
-    redness_level: checkin.redness_level,
-    sensitivity_level: checkin.sensitivity_level,
-    acne_level: checkin.acne_level,
-    notes: checkin.notes,
-    recorded_date: checkin.recorded_date,
-  };
-}
-
-function parseData(value: unknown): SkinCheckin | null {
-  if (typeof value !== "object" || value === null || !("data" in value)) return null;
-  const result = skinCheckinSchema.safeParse(value.data);
-  return result.success ? result.data : null;
-}
-
-const inputClassName =
-  "h-11 w-full rounded-lg border bg-background px-3 font-normal outline-none focus:border-ring focus:ring-2 focus:ring-ring/30";
+function SummaryRow({ period, overall }: { period: string; overall: string }) { return <article><p className="beauty-meta">{period}</p><p className="mt-2 text-sm leading-6 text-muted-foreground">{overall}</p></article>; }
+function SummarySection({ title, emptyDescription, progress, summaries }: { title: string; emptyDescription: string; progress?: string; summaries: { period: string; overall: string }[] }) { return <section className="py-6"><h3 className="beauty-object-title">{title}</h3><div className="mt-3">{summaries.length ? <div className="space-y-4">{summaries.map((summary) => <SummaryRow key={summary.period} overall={summary.overall} period={summary.period} />)}</div> : <div className="space-y-1 text-sm leading-6 text-muted-foreground">{progress ? <p>{progress}</p> : null}<p>{emptyDescription}</p></div>}</div></section>; }
+function mergeServerNarration(current: SkinHistoryCompression, serverHistory: SkinHistoryCompression) { const narrationByPeriod = new Map(serverHistory.weeklySummaries.map((summary) => [`${summary.period.start}:${summary.period.end}`, summary.overall])); const narrationByDate = new Map(serverHistory.unsettledDaily.map((entry) => [entry.date, entry.summary])); return { ...current, unsettledDaily: current.unsettledDaily.map((entry) => ({ ...entry, summary: narrationByDate.get(entry.date) ?? entry.summary })), weeklySummaries: current.weeklySummaries.map((summary) => ({ ...summary, overall: narrationByPeriod.get(`${summary.period.start}:${summary.period.end}`) ?? summary.overall })) }; }
+function formatDailyDate(value: string) { const [, month, day] = value.split("-"); return month && day ? `${Number(month)} 月 ${Number(day)} 日` : value; }
+function formatDateRange(start: string, end: string) { const format = (value: string) => { const [, month, day] = value.split("-"); return month && day ? `${Number(month)}/${Number(day)}` : value; }; return `${format(start)}–${format(end)}`; }
+function toDraft(checkin: SkinCheckin | undefined, recorded_date: string): CheckinDraft { return checkin ? { dryness_level: checkin.dryness_level, oiliness_level: checkin.oiliness_level, redness_level: checkin.redness_level, sensitivity_level: checkin.sensitivity_level, acne_level: checkin.acne_level, notes: checkin.notes, daily_state: checkin.daily_state, recorded_date: checkin.recorded_date, known_fields: checkin.known_fields, field_provenance: checkin.field_provenance } : { dryness_level: 0, oiliness_level: 0, redness_level: 0, sensitivity_level: 0, acne_level: 0, notes: null, daily_state: null, recorded_date, known_fields: [], field_provenance: {} }; }
+function parseData(value: unknown): SkinCheckin | null { if (typeof value !== "object" || value === null || !("data" in value)) return null; const result = skinCheckinSchema.safeParse(value.data); return result.success ? result.data : null; }

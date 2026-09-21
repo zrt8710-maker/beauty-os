@@ -18,4 +18,27 @@ describe("knowledge RLS migration contract", () => {
     expect(sql).toContain("draft_record.candidate_catalog_product_id is distinct from p_catalog_product_id");
     expect(sql).toContain("product_type, catalog_product_id, created_by_user_id");
   });
+
+  it("产品身份查询使用同一 normalize function、verified 限制和表达式索引", async () => {
+    const catalogSql = await readFile(path.join(process.cwd(), "supabase/migrations/20260818070000_create_product_knowledge.sql"), "utf8");
+    const sql = await readFile(path.join(process.cwd(), "supabase/migrations/20260819003000_add_catalog_identity_query.sql"), "utf8");
+    expect(catalogSql).toContain("barcode text unique");
+    expect(sql).toContain("catalog_products_verified_normalized_identity_idx");
+    expect(sql).toContain("public.normalize_product_match_text(brand_name)");
+    expect(sql).toContain("public.normalize_product_match_text(product_name)");
+    expect(sql).toContain("where status = 'verified'");
+    expect(sql).toContain("catalog_product.status = 'verified'");
+    expect(sql).toContain("returns setof public.catalog_products");
+    expect(sql).toContain("to authenticated");
+  });
+
+  it("身份查询复用既有 PostgreSQL normalize，不在 Step 2 定义第二套规则", async () => {
+    const normalizationSql = await readFile(path.join(process.cwd(), "supabase/migrations/20260818081000_stabilize_write_boundaries.sql"), "utf8");
+    const identitySql = await readFile(path.join(process.cwd(), "supabase/migrations/20260819003000_add_catalog_identity_query.sql"), "utf8");
+    expect(normalizationSql).toContain("create function public.normalize_product_match_text(value text)");
+    expect(normalizationSql).toContain("pg_catalog.lower(");
+    expect(normalizationSql).toContain("pg_catalog.regexp_replace(value, '[^[:alnum:]]+', '', 'g')");
+    expect(identitySql).not.toContain("create function public.normalize_product_match_text");
+    expect(identitySql.match(/public\.normalize_product_match_text/g)).toHaveLength(6);
+  });
 });

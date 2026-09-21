@@ -43,6 +43,15 @@ const weatherRow = {
 };
 
 describe("WeatherService", () => {
+  it("normalizes Supabase offset timestamps before validating a weather row", async () => {
+    const weather = createWeatherRepository({ created_at: "2026-08-18T08:00:00.000+00:00" });
+    const service = createWeatherService(weather, createProfileRepository(), createProvider());
+
+    await expect(service.getLatestWeather("user-a")).resolves.toMatchObject({
+      created_at: "2026-08-18T08:00:00.000Z",
+    });
+  });
+
   it("从当前用户 profile 读取位置并保存原始天气快照", async () => {
     const weather = createWeatherRepository();
     const profiles = createProfileRepository();
@@ -93,11 +102,11 @@ function createProfileRepository(): ProfileRepository {
   };
 }
 
-function createWeatherRepository(): WeatherRepository {
+function createWeatherRepository(overrides: Partial<typeof weatherRow> = {}): WeatherRepository {
   return {
-    findLatestByUserId: vi.fn().mockResolvedValue(weatherRow),
-    findByDate: vi.fn().mockResolvedValue(weatherRow),
-    upsertByDate: vi.fn().mockResolvedValue(weatherRow),
+    findLatestByUserId: vi.fn().mockResolvedValue({ ...weatherRow, ...overrides }),
+    findByDate: vi.fn().mockResolvedValue({ ...weatherRow, ...overrides }),
+    upsertByDate: vi.fn().mockResolvedValue({ ...weatherRow, ...overrides }),
   };
 }
 

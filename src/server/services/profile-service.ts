@@ -4,6 +4,7 @@ import type { Json } from "@/db/database.types";
 import {
   profileInputSchema,
   profileSchema,
+  type LongTermSkinBaseline,
   type Profile,
   type ProfileInput,
 } from "@/schemas/profile";
@@ -16,6 +17,10 @@ import type {
 type StoredPreferences = {
   texture_preferences?: unknown;
 };
+
+function readLongTermSkinBaseline(value: Json | undefined): LongTermSkinBaseline {
+  return profileInputSchema.shape.long_term_skin_baseline.parse(value);
+}
 
 function readTexturePreferences(preferences: Json): unknown[] {
   if (
@@ -32,11 +37,16 @@ function readTexturePreferences(preferences: Json): unknown[] {
     : [];
 }
 
-function toProfile(row: ProfileRow): Profile {
+function toUtcIsoString(value: string): string {
+  return new Date(value).toISOString();
+}
+
+export function toProfile(row: ProfileRow): Profile {
   return profileSchema.parse({
     skin_type: row.skin_type,
     sensitivity_level: row.sensitivity_level,
     skin_goals: row.goals,
+    long_term_skin_baseline: readLongTermSkinBaseline(row.long_term_skin_baseline),
     preferred_routine_length: {
       am_steps: row.max_am_steps,
       pm_steps: row.max_pm_steps,
@@ -49,8 +59,10 @@ function toProfile(row: ProfileRow): Profile {
       latitude: row.latitude,
       longitude: row.longitude,
     },
-    onboarding_completed_at: row.onboarding_completed_at,
-    updated_at: row.updated_at,
+    onboarding_completed_at: row.onboarding_completed_at
+      ? toUtcIsoString(row.onboarding_completed_at)
+      : null,
+    updated_at: toUtcIsoString(row.updated_at),
   });
 }
 
@@ -64,6 +76,7 @@ function toProfileUpdate(
     skin_type: input.skin_type,
     sensitivity_level: input.sensitivity_level,
     goals: input.skin_goals,
+    long_term_skin_baseline: input.long_term_skin_baseline,
     max_am_steps: input.preferred_routine_length.am_steps,
     max_pm_steps: input.preferred_routine_length.pm_steps,
     preferences: {

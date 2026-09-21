@@ -54,9 +54,30 @@ describe("Email Magic Link 登录", () => {
       "owner@example.com",
     );
 
-    expect(result).toEqual({ ok: true });
+    expect(result).toEqual({ ok: true, userId: "user-a" });
     expect(exchangeCodeForSession).toHaveBeenCalledWith("authorization-code");
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ status: 429, message: "rate limited" }],
+    [{ code: "over_email_send_rate_limit", message: "rate limited" }],
+  ])("邮件限流返回可读提示且不自动重试", async (error) => {
+    const send = vi.fn().mockResolvedValue({ error });
+
+    const result = await requestMagicLink(
+      {
+        email: "owner@example.com",
+        redirectTo: "http://localhost:3000/auth/callback",
+      },
+      send,
+    );
+
+    expect(result).toEqual({
+      status: "error",
+      message: "发送过于频繁，请稍后再试。",
+    });
+    expect(send).toHaveBeenCalledOnce();
   });
 
   it("callback 发现非 allowlist 身份后立即注销", async () => {

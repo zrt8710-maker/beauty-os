@@ -1,16 +1,22 @@
 import { redirect } from "next/navigation";
 
 import { CheckinManager } from "@/features/check-in/checkin-manager";
+import { buildSkinHistoryCompression } from "@/features/check-in/skin-history-compression-model";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/server/auth/get-current-user";
-import { createOpenMeteoProvider } from "@/server/integrations/weather/open-meteo";
+import { getProfileContext } from "@/server/app-shell/app-shell-context";
 import { createProfileRepository } from "@/server/repositories/profile-repository";
 import { createSkinCheckinRepository } from "@/server/repositories/skin-checkin-repository";
-import { createWeatherRepository } from "@/server/repositories/weather-repository";
+import { createProfileService } from "@/server/services/profile-service";
 import { createSkinCheckinService } from "@/server/services/skin-checkin-service";
-import { createWeatherService } from "@/server/services/weather-service";
+import { buildRecentSkinTrends } from "@/server/services/recent-skin-trends-service";
+import { getReusableDailyNarration, getReusableWeeklyNarration } from "@/server/daily-skin-report/narration-reuse-service";
 
-export default async function CheckinPage() {
+export default async function CheckinPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string | string[] }>;
+}) {
   const user = await getCurrentUser();
 
   if (!user) redirect("/login");
@@ -20,33 +26,52 @@ export default async function CheckinPage() {
   const checkinService = createSkinCheckinService(
     createSkinCheckinRepository(supabase),
   );
-  const weatherService = createWeatherService(
-    createWeatherRepository(supabase),
-    profiles,
-    createOpenMeteoProvider(),
-  );
-  const [profile, checkins, weather] = await Promise.all([
-    profiles.findByUserId(user.id),
-    checkinService.listCheckins(user.id, { limit: 7 }),
-    weatherService.getLatestWeather(user.id),
+  const [shell, checkins] = await Promise.all([
+    getProfileContext(user.id),
+    checkinService.listCheckins(user.id, { limit: 30 }),
   ]);
+  const profile = shell.profile ?? await createProfileService(profiles).getProfile(user.id);
   const today = formatDateInTimeZone(
     new Date(),
-    profile?.timezone ?? "Asia/Shanghai",
+    profile.timezone,
   );
+  const query = await searchParams;
+  const requestedDate = typeof query.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(query.date)
+    ? query.date
+    : today;
+  const recentTrends = buildRecentSkinTrends(checkins, today);
+  const history = buildSkinHistoryCompression({ checkins, profile, recentTrends, today });
+  const activeDates = new Set(history.unsettledDaily.map((entry) => entry.date));
+  const dailyNarrationEntriesPromise = Promise.all(checkins.filter((checkin) => activeDates.has(checkin.recorded_date) && checkin.daily_state).map(async (checkin) => [checkin.recorded_date, (await getReusableDailyNarration({ today: checkin.daily_state!, profile, recentTrends, mode: "short_history" })).overall_observation] as const));
+  const latestWeeklySummary = history.weeklySummaries[0];
+  const weeklyNarrationPromise = latestWeeklySummary
+    ? getReusableWeeklyNarration({ summary: latestWeeklySummary, profile })
+    : Promise.resolve(null);
+  const [dailyNarrationEntries, weeklyNarration] = await Promise.all([
+    dailyNarrationEntriesPromise,
+    weeklyNarrationPromise,
+  ]);
+  const dailyNarrations = Object.fromEntries(dailyNarrationEntries);
+  const narratedDailyHistory = { ...history, unsettledDaily: history.unsettledDaily.map((entry) => ({ ...entry, summary: dailyNarrations[entry.date] ?? entry.summary })) };
+  const narratedHistory = weeklyNarration && latestWeeklySummary
+    ? { ...narratedDailyHistory, weeklySummaries: [{ ...latestWeeklySummary, overall: weeklyNarration }] }
+    : narratedDailyHistory;
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8">
-        <p className="text-sm font-medium text-muted-foreground">Daily context</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">今日皮肤记录</h1>
-        <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
-          记录主观肤况和当天环境数据。本页面只保存事实，不生成护肤建议。
+    <main className="beauty-ambient-page beauty-ambient-checkin beauty-page">
+      <div className="beauty-page-header">
+        <h1 className="beauty-page-title">皮肤日记</h1>
+        <p className="beauty-copy mt-3">
+          按日期回看状态变化、短期记录与阶段总结。
         </p>
       </div>
       <CheckinManager
         initialCheckins={checkins}
-        initialWeather={weather}
+        profile={{ long_term_skin_baseline: profile.long_term_skin_baseline, skin_type: profile.skin_type }}
+        recentTrends={recentTrends}
+        history={narratedHistory}
+        dailyNarrations={dailyNarrations}
+        selectedDate={requestedDate}
         today={today}
       />
     </main>

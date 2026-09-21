@@ -21,6 +21,7 @@ export type WeatherRepository = {
   findLatestByUserId(userId: string): Promise<WeatherRow | null>;
   findByDate(userId: string, recordedDate: string): Promise<WeatherRow | null>;
   upsertByDate(userId: string, input: WeatherWrite): Promise<WeatherRow>;
+  deleteByDates?(userId: string, recordedDates: string[]): Promise<void>;
 };
 
 export function createWeatherRepository(
@@ -71,6 +72,17 @@ export function createWeatherRepository(
       }
 
       return data;
+    },
+
+    async deleteByDates(userId, recordedDates) {
+      const dates = [...new Set(recordedDates)];
+      if (dates.length === 0) return;
+      const { error } = await supabase
+        .from("weather_data")
+        .delete()
+        .eq("user_id", userId)
+        .in("recorded_date", dates);
+      if (error) throw new Error("WEATHER_DELETE_FAILED", { cause: error });
     },
   };
 }

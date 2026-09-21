@@ -13,7 +13,13 @@ export type LoginActionState = {
 type MagicLinkSender = (input: {
   email: string;
   redirectTo: string;
-}) => Promise<{ error: { message: string } | null }>;
+}) => Promise<{
+  error: {
+    message: string;
+    code?: string;
+    status?: number;
+  } | null;
+}>;
 
 export async function requestMagicLink(
   input: {
@@ -48,6 +54,16 @@ export async function requestMagicLink(
   });
 
   if (error) {
+    if (
+      error.status === 429 ||
+      error.code === "over_email_send_rate_limit"
+    ) {
+      return {
+        status: "error",
+        message: "发送过于频繁，请稍后再试。",
+      };
+    }
+
     return {
       status: "error",
       message: "登录邮件发送失败，请稍后重试。",
@@ -56,6 +72,6 @@ export async function requestMagicLink(
 
   return {
     status: "success",
-    message: "登录链接已发送，请检查邮箱。",
+    message: "登录链接已发送，请检查你的邮箱。",
   };
 }

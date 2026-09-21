@@ -1,0 +1,23 @@
+{
+  "schema_version": "catalog-seed/v0.1",
+  "catalog_product_id": "10000000-0000-4000-8000-000000000001",
+  "source": {
+    "source_id": "20000000-0000-4000-8000-000000000001",
+    "source_type": "official_brand",
+    "name": "Official product page",
+    "source_url": "https://example.com/replace-with-real-source",
+    "license_note": "Replace with the actual reuse/provenance note.",
+    "retrieved_at": "2026-08-24T00:00:00.000Z"
+  },
+  "identity": {
+    "brand_name": "Replace with verified brand",
+    "product_name": "Replace with verified product name",
+    "variant_name": null,
+    "barcode": null,
+    "category": "skincare",
+    "subcategory": "face_care",
+    "product_type": "moisturizer",
+    "confidence": 95,
+    "status": "verified"
+  }
+}

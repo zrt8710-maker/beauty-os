@@ -11,6 +11,10 @@ const productRow = {
   id: "10000000-0000-4000-8000-000000000001",
   brand_name: "Beauty OS",
   product_name: "保湿精华",
+  variant_name: null,
+  barcode: null,
+  identity_status: "matched",
+  catalog_product_id: "30000000-0000-4000-8000-000000000001",
   category: "skincare",
   subcategory: "face_care",
   product_type: "serum",
@@ -26,6 +30,7 @@ const ownedRow = {
   status: "active",
   purchase_date: "2026-08-01",
   opened_at: "2026-08-10",
+  expires_on: null,
   quantity_remaining_percent: 60,
   notes: null,
   archived_at: null,
@@ -46,6 +51,7 @@ describe("InventoryService", () => {
     };
     ownedProducts = {
       listByUserId: vi.fn().mockResolvedValue([ownedRow]),
+      listByUserIdWithCatalogImage: vi.fn().mockResolvedValue([ownedRow]),
       findById: vi.fn().mockResolvedValue(ownedRow),
       create: vi.fn().mockResolvedValue(ownedRow),
       update: vi.fn().mockResolvedValue(ownedRow),
@@ -85,6 +91,22 @@ describe("InventoryService", () => {
 
     expect(products.listByUserId).toHaveBeenCalledWith("user-a", {});
     expect(ownedProducts.listByUserId).toHaveBeenCalledWith("user-a", {});
+  });
+
+  it("为 Inventory 投影当前 Catalog 图片", async () => {
+    vi.mocked(ownedProducts.listByUserIdWithCatalogImage).mockResolvedValue([{
+      ...ownedRow,
+      product: {
+        ...productRow,
+        catalog_product: { catalog_image_url: "https://catalog.example/current.jpg" },
+      },
+    }]);
+    const service = createInventoryService(products, ownedProducts);
+
+    const inventory = await service.listOwnedProductsWithCatalogImage("user-a", {});
+
+    expect(ownedProducts.listByUserIdWithCatalogImage).toHaveBeenCalledWith("user-a", {});
+    expect(inventory[0]?.product.catalog_image_url).toBe("https://catalog.example/current.jpg");
   });
 
   it("不能把其他用户的产品添加到自己的库存", async () => {

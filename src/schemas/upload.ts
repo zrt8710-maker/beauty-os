@@ -27,8 +27,12 @@ export const uploadCreateSchema = z
     file_size: z.number().int().min(1).max(MAX_PRODUCT_IMAGE_BYTES),
     purpose: z.enum(UPLOAD_PURPOSES),
     product_id: z.uuid().nullable().default(null),
-  })
-  .strict();
+    owned_product_id: z.uuid().nullable().default(null),
+  }).strict().superRefine((upload, context) => {
+    if (upload.product_id !== null && upload.owned_product_id !== null) {
+      context.addIssue({ code: "custom", message: "图片只能绑定产品或具体资产之一。", path: ["owned_product_id"] });
+    }
+  });
 
 export const uploadListQuerySchema = z
   .object({
@@ -41,6 +45,7 @@ export const uploadIdSchema = z.uuid();
 export const uploadAssetSchema = z.object({
   id: z.uuid(),
   product_id: z.uuid().nullable(),
+  owned_product_id: z.uuid().nullable().default(null),
   file_name: safeFileNameSchema,
   mime_type: z.enum(PRODUCT_IMAGE_MIME_TYPES),
   file_size: z.number().int().min(1).max(MAX_PRODUCT_IMAGE_BYTES),

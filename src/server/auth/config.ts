@@ -1,35 +1,9 @@
-import { z } from "zod";
-
-const optionalEmail = z.preprocess(
-  (value) => (value === "" ? undefined : value),
-  z.string().trim().toLowerCase().email().optional(),
-);
-
-const authConfigSchema = z.object({
-  allowedEmail: optionalEmail,
-});
-
-export type AuthConfig = z.infer<typeof authConfigSchema>;
-
-let cachedAuthConfig: AuthConfig | undefined;
+export type AuthConfig = { allowedEmail?: string };
 
 export function getAuthConfig(): AuthConfig {
-  if (cachedAuthConfig) {
-    return cachedAuthConfig;
-  }
-
-  const result = authConfigSchema.safeParse({
-    allowedEmail: process.env.AUTH_ALLOWED_EMAIL,
-  });
-
-  if (!result.success) {
-    throw new Error(
-      "AUTH_ALLOWED_EMAIL must be empty or contain one valid email address.",
-    );
-  }
-
-  cachedAuthConfig = result.data;
-  return cachedAuthConfig;
+  // Public registration: deliberately ignore the retired AUTH_ALLOWED_EMAIL
+  // variable, including stale values in existing deployment environments.
+  return { allowedEmail: undefined };
 }
 
 export function isEmailAllowed(

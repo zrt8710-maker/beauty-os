@@ -30,6 +30,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+/.tmp/
 
 # env files (can opt-in for committing if needed)
 .env*
@@ -42,3 +43,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 supabase/.temp/
+
+# Local agent state and diagnostic artifacts are not release source.
+/.agents/
+/.codex/
+/.playwright-cli/
+/output/
+/artifacts/

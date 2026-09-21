@@ -1,0 +1,304 @@
+version: 1
+scope: "Beauty OS Ingredient Knowledge Pack - high-value ingredients only"
+principles:
+  - "Only include ingredient knowledge that is useful for Today fit and explanation."
+  - "Ingredient knowledge describes common cosmetic/formulation roles, not personalized suitability."
+  - "Do not infer guaranteed product efficacy from the mere presence of an ingredient."
+  - "Today AI should combine ingredient knowledge with product claims, texture, usage, user skin state, baseline and weather."
+  - "Do not use this pack as hard-safety truth."
+
+ingredients:
+  - canonical_name: "Niacinamide"
+    display_name_zh: "烟酰胺"
+    functions:
+      - "皮脂调理相关"
+      - "屏障支持相关"
+      - "肤色护理相关"
+    statement_zh: "外用研究支持烟酰胺与皮脂调理、角质层屏障支持及肤色改善相关。"
+    use_for_today_explanation:
+      - "当产品本身也有平衡水油、屏障或肤色相关宣称时，可作为支持理由之一。"
+    boundary:
+      - "不能仅凭含烟酰胺就断言产品一定控油、修护或适合所有油性状态。"
+    confidence: 92
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/16766489/"
+      - "https://pubmed.ncbi.nlm.nih.gov/12100180/"
+
+  - canonical_name: "Glycerin"
+    display_name_zh: "甘油"
+    functions:
+      - "吸湿保湿"
+      - "角质层水合支持"
+      - "屏障功能支持"
+    statement_zh: "甘油是典型吸湿剂，可提高角质层含水量，并与皮肤屏障功能改善相关。"
+    use_for_today_explanation:
+      - "适合解释产品为什么能兼顾补水、洗后不紧绷或轻薄保湿。"
+    boundary:
+      - "不能仅凭甘油存在就判断产品整体一定足够保湿。"
+    confidence: 95
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/18510666/"
+
+  - canonical_name: "Sodium Hyaluronate"
+    display_name_zh: "透明质酸钠"
+    functions:
+      - "吸湿保湿"
+      - "皮肤水合支持"
+    statement_zh: "透明质酸类成分具有吸湿和保水相关特性，外用研究支持其改善皮肤水合。"
+    use_for_today_explanation:
+      - "适合解释轻量补水、干燥状态下的水分支持。"
+    boundary:
+      - "不能仅凭透明质酸钠就断言产品能完成完整锁水或屏障修护。"
+    confidence: 92
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/36200921/"
+
+  - canonical_name: "Hydrolyzed Hyaluronic Acid"
+    display_name_zh: "水解透明质酸"
+    functions:
+      - "吸湿保湿"
+      - "皮肤水合支持"
+    statement_zh: "属于透明质酸类保湿成分，可作为产品补水、水合相关解释的一部分。"
+    use_for_today_explanation:
+      - "适用于解释产品的补水支持，但不单独推导锁水能力。"
+    boundary:
+      - "不同分子量、配方体系和浓度会影响实际表现。"
+    confidence: 84
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/36200921/"
+
+  - canonical_name: "Panthenol"
+    display_name_zh: "泛醇"
+    functions:
+      - "保湿"
+      - "屏障支持"
+      - "舒缓相关"
+    statement_zh: "外用泛醇研究显示其与角质层水合提高、经皮水分流失降低及屏障恢复相关。"
+    use_for_today_explanation:
+      - "当用户当天有干燥、紧绷或需要温和护理时，可作为支持产品选择的事实之一。"
+    boundary:
+      - "不能把泛醇直接表述为治疗或保证修复。"
+    confidence: 94
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/27425824/"
+      - "https://pubmed.ncbi.nlm.nih.gov/10965426/"
+
+  - canonical_name: "Ceramide NP"
+    display_name_zh: "神经酰胺 NP"
+    functions:
+      - "角质层脂质支持"
+      - "屏障功能支持"
+      - "减少水分流失相关"
+    statement_zh: "神经酰胺是角质层细胞间脂质的重要组成部分，与维持皮肤屏障和减少水分蒸发密切相关。"
+    use_for_today_explanation:
+      - "适合解释产品为何偏向屏障和干燥护理。"
+    boundary:
+      - "神经酰胺是否能发挥理想作用还受配方比例和脂质体系影响。"
+    confidence: 95
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/39113291/"
+      - "https://pubmed.ncbi.nlm.nih.gov/34596254/"
+
+  - canonical_name: "Ceramide AP"
+    display_name_zh: "神经酰胺 AP"
+    functions:
+      - "角质层脂质支持"
+      - "屏障功能支持"
+      - "减少水分流失相关"
+    statement_zh: "神经酰胺是角质层屏障脂质体系的重要组成部分。"
+    use_for_today_explanation:
+      - "适合用于干燥、屏障护理方向的产品解释。"
+    boundary:
+      - "不能仅凭单一神经酰胺成分判断产品一定能完成屏障修护。"
+    confidence: 94
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/39113291/"
+      - "https://pubmed.ncbi.nlm.nih.gov/17587886/"
+
+  - canonical_name: "Ceramide NS"
+    display_name_zh: "神经酰胺 NS"
+    functions:
+      - "角质层脂质支持"
+      - "屏障功能支持"
+      - "减少水分流失相关"
+    statement_zh: "神经酰胺 NS 属于角质层重要屏障脂质类别。"
+    use_for_today_explanation:
+      - "可作为产品偏屏障支持和干燥护理的解释事实。"
+    boundary:
+      - "实际效果依赖完整配方，而非单一成分名称。"
+    confidence: 94
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/39113291/"
+      - "https://pubmed.ncbi.nlm.nih.gov/17587886/"
+
+  - canonical_name: "Squalane"
+    display_name_zh: "角鲨烷"
+    functions:
+      - "润肤"
+      - "油相柔润支持"
+      - "减少干燥粗糙感相关"
+    statement_zh: "角鲨烷常作为化妆品润肤油相成分，用于改善肤感与柔润度。"
+    use_for_today_explanation:
+      - "适合解释轻薄乳液或精华乳为什么能提供一定润肤收尾。"
+    boundary:
+      - "不能仅凭角鲨烷就把产品等同于厚重面霜或完整锁水体系。"
+    confidence: 82
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/37752766/"
+      - "https://pubmed.ncbi.nlm.nih.gov/19169201/"
+
+  - canonical_name: "Dipotassium Glycyrrhizate"
+    display_name_zh: "甘草酸二钾"
+    functions:
+      - "舒缓相关"
+      - "炎症反应调理相关"
+    statement_zh: "研究支持甘草酸二钾与抗炎、舒缓相关作用有关。"
+    use_for_today_explanation:
+      - "当产品整体定位也偏舒缓、敏感护理时，可作为支持理由之一。"
+    boundary:
+      - "不能把它表述成针对某种皮肤疾病的确定治疗效果。"
+    confidence: 86
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/36835248/"
+      - "https://pubmed.ncbi.nlm.nih.gov/38433250/"
+
+  - canonical_name: "Madecassoside"
+    display_name_zh: "羟基积雪草甙"
+    functions:
+      - "舒缓相关"
+      - "屏障支持相关"
+      - "皮肤水合支持相关"
+    statement_zh: "细胞与配方研究支持羟基积雪草甙与炎症调理、水合和屏障支持相关。"
+    use_for_today_explanation:
+      - "适合在产品本身也有舒缓/修护定位时作为辅助解释。"
+    boundary:
+      - "当前证据不能支持仅凭该成分就断言产品具有明确治疗性修复效果。"
+    confidence: 82
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/30452312/"
+      - "https://pubmed.ncbi.nlm.nih.gov/37446936/"
+
+  - canonical_name: "Allantoin"
+    display_name_zh: "尿囊素"
+    functions:
+      - "皮肤调理"
+      - "舒缓相关"
+    statement_zh: "Cosmetic Ingredient Review 将尿囊素及其相关复合物归为皮肤调理剂。"
+    use_for_today_explanation:
+      - "适合作为温和、舒缓型配方的辅助支持事实。"
+    boundary:
+      - "不要把尿囊素夸大为强修复或治疗成分。"
+    confidence: 88
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/20448269/"
+
+  - canonical_name: "Sulfur"
+    display_name_zh: "硫"
+    aliases_zh:
+      - "胶态硫"
+    functions:
+      - "角质调理相关"
+      - "抗菌相关"
+      - "痘痘针对性护理相关"
+    statement_zh: "外用硫在皮肤科长期用于痤疮等问题，具有角质调理及抗微生物相关作用。"
+    use_for_today_explanation:
+      - "仅当用户今天明确有痘痘/堵塞类信号，或 AI 判断为可选针对性护理时，才有较高解释价值。"
+    boundary:
+      - "长期痘肌背景不等于今天必须使用含硫产品。"
+      - "不能仅凭含硫就断言产品一定祛痘。"
+    confidence: 88
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/15303787/"
+      - "https://pubmed.ncbi.nlm.nih.gov/2450900/"
+
+  - canonical_name: "Lactobionic Acid"
+    display_name_zh: "乳糖酸"
+    functions:
+      - "PHA 角质调理"
+      - "吸湿保湿"
+      - "屏障支持相关"
+    statement_zh: "乳糖酸属于 PHA；文献支持 PHA 兼具角质调理、吸湿保湿和屏障相关特性，感官刺激通常低于传统 AHA。"
+    use_for_today_explanation:
+      - "适合解释温和角质调理与保湿兼顾的产品定位。"
+    boundary:
+      - "不能把“PHA 通常较温和”转写成该产品对任何用户都无刺激。"
+    confidence: 91
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/15002656/"
+      - "https://pubmed.ncbi.nlm.nih.gov/30270529/"
+
+  - canonical_name: "Gluconolactone"
+    display_name_zh: "葡糖酸内酯"
+    functions:
+      - "PHA 角质调理"
+      - "吸湿保湿"
+      - "屏障支持相关"
+    statement_zh: "葡糖酸内酯属于 PHA，可用于较温和的角质调理，并具有吸湿保湿与屏障相关特点。"
+    use_for_today_explanation:
+      - "可与产品本身的毛孔/角质调理 claim 一起支持 AI 判断。"
+    boundary:
+      - "不能把其存在直接等同于产品一定适合敏感状态或可高频使用。"
+    confidence: 90
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/15002656/"
+
+  - canonical_name: "Mandelic Acid"
+    display_name_zh: "杏仁酸"
+    functions:
+      - "AHA 角质调理"
+      - "痘痘/堵塞护理相关"
+    statement_zh: "杏仁酸可作为化学剥脱/角质调理成分；临床研究中用于轻中度痤疮相关化学焕肤。"
+    use_for_today_explanation:
+      - "当用户今天明确有堵塞、痘痘等信号，且产品整体用途与使用限制匹配时，可作为针对性护理依据之一。"
+    boundary:
+      - "化学焕肤研究浓度和家庭护肤产品浓度并不等同，不能直接外推强度或疗效。"
+      - "长期痘肌背景不应自动触发当天使用。"
+    confidence: 85
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/31553119/"
+      - "https://pubmed.ncbi.nlm.nih.gov/29705755/"
+
+  - canonical_name: "Simmondsia Chinensis (Jojoba) Seed Oil"
+    display_name_zh: "霍霍巴籽油"
+    functions:
+      - "润肤"
+      - "油相柔润支持"
+      - "保湿配方支持"
+    statement_zh: "霍霍巴籽油富含蜡酯，常用于保湿与润肤型化妆品配方。"
+    use_for_today_explanation:
+      - "适合解释精华乳/乳液类产品为什么能提供柔润感和轻薄滋润。"
+    boundary:
+      - "不要仅凭霍霍巴籽油就推断产品一定适合某种肤质或一定不会致痘。"
+    confidence: 84
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/24442052/"
+
+  - canonical_name: "Decyl Glucoside"
+    display_name_zh: "癸基葡糖苷"
+    functions:
+      - "非离子表面活性剂"
+      - "清洁体系组成"
+    statement_zh: "癸基葡糖苷属于烷基葡糖苷类非离子表面活性剂，主要用于清洁体系。"
+    use_for_today_explanation:
+      - "适合解释洁面产品的清洁体系组成，而不是把它单独描述成保湿或修护成分。"
+    boundary:
+      - "不能仅凭癸基葡糖苷就断言整个洁面一定温和。"
+      - "烷基葡糖苷也存在接触过敏报道。"
+    confidence: 94
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/24174472/"
+      - "https://pubmed.ncbi.nlm.nih.gov/35551968/"
+
+  - canonical_name: "Acetyl Glucosamine"
+    display_name_zh: "乙酰壳糖胺"
+    functions:
+      - "肤色护理相关"
+    statement_zh: "外用 N-乙酰葡糖胺的临床研究支持其与改善色素沉着外观相关，常与烟酰胺组合研究。"
+    use_for_today_explanation:
+      - "更适合用于长期肤色/痘印相关解释，不应因为今天轻度出油就强行提及。"
+    boundary:
+      - "不能仅凭含该成分就断言产品具有明确祛斑效果。"
+    confidence: 86
+    sources:
+      - "https://pubmed.ncbi.nlm.nih.gov/17348991/"
+      - "https://pubmed.ncbi.nlm.nih.gov/19845667/"

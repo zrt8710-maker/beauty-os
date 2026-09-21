@@ -86,6 +86,21 @@ describe("purchase analysis rules", () => {
     expect(result.decision).toBe("wait");
   });
 
+  it("historical unopened 与 active 不产生购买分数差异", () => {
+    const active = calculatePurchaseAnalysis(context({
+      inventory: [owned("owned-a", "serum", { remaining: 80, status: "active" })],
+    }));
+    const legacyUnopened = calculatePurchaseAnalysis(context({
+      inventory: [owned("owned-a", "serum", { remaining: 80, status: "unopened" })],
+    }));
+
+    expect(legacyUnopened.final_score).toBe(active.final_score);
+    expect(legacyUnopened.usage_probability_score).toBe(active.usage_probability_score);
+    expect(legacyUnopened.decision).toBe(active.decision);
+    expect(legacyUnopened.reason_codes).toEqual(active.reason_codes);
+    expect(legacyUnopened.reason_codes).not.toContain("UNUSED_INVENTORY_PRESSURE");
+  });
+
   it("同角色不同功能不被认定为替代品", () => {
     const result = calculatePurchaseAnalysis(context({
       inventory: [owned("owned-mask", "mask")],
@@ -137,4 +152,4 @@ describe("purchase analysis rules", () => {
 function context(override: Partial<PurchaseRuleContext> = {}): PurchaseRuleContext { return { candidate: candidate(), profile: profile(), inventory: [], feedbackStats: new Map(), ...override }; }
 function candidate(override: Partial<PurchaseRuleContext["candidate"]> = {}): PurchaseRuleContext["candidate"] { return { catalogProductId: catalogId, brandName: "Beauty", productName: "Serum", category: "skincare", productType: "serum", confidence: 95, source: "catalog", ingredients: [{ inciName: "NIACINAMIDE", displayName: "Niacinamide", aliases: [], kind: "active", confidence: 90 }], ...override }; }
 function profile(override: Partial<NonNullable<PurchaseRuleContext["profile"]>> = {}): NonNullable<PurchaseRuleContext["profile"]> { return { user_id: "user-a", display_name: null, timezone: "Asia/Shanghai", locale: "zh-CN", location_name: null, latitude: null, longitude: null, skin_type: "combination", sensitivity_level: 1, goals: ["brightening"], allergies: [], avoid_ingredients: [], max_am_steps: 4, max_pm_steps: 5, preferences: {}, onboarding_completed_at: null, created_at: "2026-08-18T00:00:00.000Z", updated_at: "2026-08-18T00:00:00.000Z", ...override }; }
-function owned(id: string, productType: string, options: { catalogProductId?: string | null; remaining?: number } = {}): PurchaseRuleContext["inventory"][number] { return { id, user_id: "user-a", product_id: `product-${id}`, status: "active", purchase_date: null, opened_at: "2026-08-01", expires_on: null, quantity_remaining_percent: options.remaining ?? 80, notes: null, archived_at: null, created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000Z", product: { id: `product-${id}`, brand_name: "Owned", product_name: id, category: "skincare", subcategory: "face_care", product_type: productType, catalog_product_id: options.catalogProductId ?? null, created_by_user_id: "user-a", created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000Z" } }; }
+function owned(id: string, productType: string, options: { catalogProductId?: string | null; remaining?: number; status?: "active" | "unopened" } = {}): PurchaseRuleContext["inventory"][number] { return { id, user_id: "user-a", product_id: `product-${id}`, status: options.status ?? "active", purchase_date: null, opened_at: "2026-08-01", expires_on: null, quantity_remaining_percent: options.remaining ?? 80, notes: null, archived_at: null, created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000Z", product: { id: `product-${id}`, brand_name: "Owned", product_name: id, variant_name: null, barcode: null, identity_status: options.catalogProductId ? "matched" : "unknown", category: "skincare", subcategory: "face_care", product_type: productType, catalog_product_id: options.catalogProductId ?? null, created_by_user_id: "user-a", created_at: "2026-08-01T00:00:00.000Z", updated_at: "2026-08-01T00:00:00.000Z" } }; }

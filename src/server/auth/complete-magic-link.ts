@@ -19,7 +19,7 @@ type MagicLinkClient = {
 };
 
 export type CompleteMagicLinkResult =
-  | { ok: true }
+  | { ok: true; userId: string }
   | { ok: false; reason: "invalid_code" | "not_allowed" };
 
 export async function completeMagicLink(
@@ -48,5 +48,5 @@ export async function completeMagicLink(
     return { ok: false, reason: "not_allowed" };
   }
 
-  return { ok: true };
+  return { ok: true, userId: claims.sub };
 }

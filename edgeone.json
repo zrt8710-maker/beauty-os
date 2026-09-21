@@ -1,0 +1,15 @@
+{
+  "installCommand": "corepack enable && pnpm install --frozen-lockfile",
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".next",
+  "nodeVersion": "22.23.2",
+  "cloudFunctions": {
+    "nodejs": {
+      "maxDuration": 120,
+      "includeFiles": [
+        "docs/CARE_DECISION_GUIDANCE_V0.1.md",
+        "docs/ingredient-knowledge/INGREDIENT_KNOWLEDGE_PACK_V1.yaml"
+      ]
+    }
+  }
+}

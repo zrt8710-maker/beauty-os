@@ -1,12 +1,16 @@
 import "server-only";
 
+import { z } from "zod";
+
 import { weatherDataSchema, weatherRefreshSchema, type WeatherData } from "@/schemas/weather";
 import type { WeatherProvider } from "@/server/integrations/weather/provider";
-import type { ProfileRepository } from "@/server/repositories/profile-repository";
+import type { ProfileRepository, ProfileRow } from "@/server/repositories/profile-repository";
 import type {
   WeatherRepository,
   WeatherRow,
 } from "@/server/repositories/weather-repository";
+
+const databaseIsoTimestampSchema = z.iso.datetime({ offset: true });
 
 export class WeatherLocationRequiredError extends Error {
   constructor() {
@@ -15,7 +19,15 @@ export class WeatherLocationRequiredError extends Error {
   }
 }
 
-function toWeatherData(row: WeatherRow): WeatherData {
+function normalizeCreatedAt(value: unknown): string {
+  if (typeof value !== "string" || !databaseIsoTimestampSchema.safeParse(value).success) {
+    throw new TypeError("weather_data.created_at must be an ISO datetime.");
+  }
+
+  return new Date(value).toISOString();
+}
+
+export function toWeatherData(row: WeatherRow): WeatherData {
   return weatherDataSchema.parse({
     id: row.id,
     recorded_date: row.recorded_date,
@@ -24,7 +36,7 @@ function toWeatherData(row: WeatherRow): WeatherData {
     uv_index: row.uv_index,
     weather_code: row.weather_code,
     source: row.source,
-    created_at: row.created_at,
+    created_at: normalizeCreatedAt(row.created_at),
   });
 }
 
@@ -45,34 +57,37 @@ export function createWeatherService(
     },
 
     async refreshWeather(userId, input) {
-      weatherRefreshSchema.parse(input);
       const profile = await profiles.findByUserId(userId);
-
-      if (
-        !profile ||
-        profile.latitude === null ||
-        profile.longitude === null
-      ) {
-        throw new WeatherLocationRequiredError();
-      }
-
-      const observation = await provider.getCurrentWeather({
-        latitude: profile.latitude,
-        longitude: profile.longitude,
-        timezone: profile.timezone,
-      });
-      const row = await weather.upsertByDate(userId, {
-        recorded_date: observation.recordedDate,
-        temperature: observation.temperature,
-        humidity: observation.humidity,
-        uv_index: observation.uvIndex,
-        weather_code: observation.weatherCode,
-        source: observation.source,
-        raw_payload: observation.rawPayload,
-        created_at: new Date().toISOString(),
-      });
-
+      const row = await refreshWeatherForProfile(userId, input, profile, weather, provider);
       return toWeatherData(row);
     },
   };
+}
+
+export async function refreshWeatherForProfile(
+  userId: string,
+  input: unknown,
+  profile: ProfileRow | null,
+  weather: WeatherRepository,
+  provider: WeatherProvider,
+): Promise<WeatherRow> {
+  weatherRefreshSchema.parse(input);
+  if (!profile || profile.latitude === null || profile.longitude === null) {
+    throw new WeatherLocationRequiredError();
+  }
+  const observation = await provider.getCurrentWeather({
+    latitude: profile.latitude,
+    longitude: profile.longitude,
+    timezone: profile.timezone,
+  });
+  return weather.upsertByDate(userId, {
+    recorded_date: observation.recordedDate,
+    temperature: observation.temperature,
+    humidity: observation.humidity,
+    uv_index: observation.uvIndex,
+    weather_code: observation.weatherCode,
+    source: observation.source,
+    raw_payload: observation.rawPayload,
+    created_at: new Date().toISOString(),
+  });
 }

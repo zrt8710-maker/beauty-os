@@ -11,6 +11,30 @@ import type {
 export type ProfileRow = Tables<"profiles">;
 export type ProfileUpdate = Omit<TablesUpdate<"profiles">, "user_id">;
 
+type SupabaseFailure = {
+  code?: unknown;
+  message?: unknown;
+  details?: unknown;
+  hint?: unknown;
+};
+
+function logProfileUpdateFailure(error: SupabaseFailure | null) {
+  const message = typeof error?.message === "string" ? error.message : "No row returned";
+  const column = message.match(/['"]([a-z_]+)['"]\s+column/i)?.[1];
+
+  // Keep write diagnostics structural: neither the authenticated user nor request
+  // values are included in server logs.
+  console.error("[profile-update]", {
+    stage: "supabase_update",
+    error_code: typeof error?.code === "string" ? error.code : undefined,
+    error_message: message,
+    database_table: "profiles",
+    database_column: column,
+    database_details: typeof error?.details === "string" ? error.details : undefined,
+    database_hint: typeof error?.hint === "string" ? error.hint : undefined,
+  });
+}
+
 export type ProfileRepository = {
   findByUserId(userId: string): Promise<ProfileRow | null>;
   upsertByUserId(
@@ -51,6 +75,7 @@ export function createProfileRepository(
         .single();
 
       if (error || !data) {
+        logProfileUpdateFailure(error);
         throw new Error("PROFILE_WRITE_FAILED", { cause: error });
       }
 

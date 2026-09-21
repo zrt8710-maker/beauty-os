@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath = path.join(process.cwd(), "supabase/migrations/20260818060000_create_usage_history.sql");
 const stabilizationPath = path.join(process.cwd(), "supabase/migrations/20260818081000_stabilize_write_boundaries.sql");
+const scopedPreferencePath = path.join(process.cwd(), "supabase/migrations/20260917000000_add_scoped_routine_role_feedback.sql");
 
 describe("usage history RLS migration contract", () => {
   it("为历史及产品反馈启用用户隔离，并在稳定性 migration 撤销直接写入", async () => {
@@ -27,5 +28,15 @@ describe("usage history RLS migration contract", () => {
     expect(sql).toContain("routines.user_id = (select auth.uid())");
     expect(sql).toContain("USAGE_PRODUCT_NOT_IN_OWN_ROUTINE");
     expect(sql).toContain("security invoker");
+  });
+
+  it("stores scoped routine-role feedback on the existing history row and preserves the owned-product boundary", async () => {
+    const sql = await readFile(scopedPreferencePath, "utf8");
+    expect(sql).toContain("add column routine_role_preferences jsonb");
+    expect(sql).toContain("p_routine_role_preferences jsonb");
+    expect(sql).toContain("INVALID_ROUTINE_ROLE_PREFERENCE");
+    expect(sql).toContain("from public.record_usage_feedback_message(");
+    expect(sql).not.toContain("insert into public.usage_history_products");
+    expect(sql).not.toMatch(/create table .*preference/iu);
   });
 });

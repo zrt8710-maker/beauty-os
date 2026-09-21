@@ -73,6 +73,15 @@ export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 export type ProductSubcategory = (typeof PRODUCT_SUBCATEGORIES)[number];
 export type ProductType = (typeof PRODUCT_TYPES)[number];
 
+export const USER_ASSET_CATEGORIES = [
+  "skincare",
+  "makeup",
+  "cleansing",
+  "other",
+] as const;
+
+export type UserAssetCategory = (typeof USER_ASSET_CATEGORIES)[number];
+
 export const PRODUCT_TYPE_META: Record<
   ProductType,
   {
@@ -138,6 +147,8 @@ export const EDITABLE_OWNED_PRODUCT_STATUSES = [
   "discarded",
 ] as const;
 
+export const PRODUCT_IDENTITY_STATUSES = ["matched", "unknown"] as const;
+
 const nullableText = (max: number) => z.string().trim().min(1).max(max).nullable();
 const nullableDate = z.iso.date().nullable();
 
@@ -163,11 +174,18 @@ export const productSchema = z.object({
   id: z.uuid(),
   brand_name: nullableText(120),
   product_name: z.string().min(1).max(200),
+  variant_name: nullableText(200).default(null),
+  barcode: z.string().min(8).max(32).nullable().default(null),
+  identity_status: z.enum(PRODUCT_IDENTITY_STATUSES).default("unknown"),
   category: z.enum(PRODUCT_CATEGORIES),
   subcategory: z.enum(PRODUCT_SUBCATEGORIES),
   product_type: z.enum(PRODUCT_TYPES),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  catalog_product_id: z.uuid().nullable().optional(),
+  catalog_image_url: z.url().nullable().optional(),
+  // Supabase serializes PostgreSQL timestamptz values with an explicit offset
+  // (for example, `2026-08-19T10:00:00+00:00`) rather than always using `Z`.
+  created_at: z.iso.datetime({ offset: true }),
+  updated_at: z.iso.datetime({ offset: true }),
 });
 
 export const productListQuerySchema = z
@@ -186,8 +204,11 @@ export const productListQuerySchema = z
 export const ownedProductStateSchema = z
   .object({
     product_id: z.uuid(),
-    status: z.enum(EDITABLE_OWNED_PRODUCT_STATUSES).default("unopened"),
+    asset_category: z.enum(USER_ASSET_CATEGORIES).default("other"),
+    status: z.enum(EDITABLE_OWNED_PRODUCT_STATUSES).default("active"),
     purchase_date: nullableDate,
+    manufacture_date: nullableDate.optional(),
+    package_size: nullableText(100).optional(),
     opened_at: nullableDate,
     expires_on: nullableDate.default(null),
     quantity_remaining_percent: z.number().int().min(0).max(100),
@@ -212,12 +233,18 @@ export const ownedProductCreateSchema = ownedProductStateSchema;
 
 export const ownedProductUpdateSchema = z
   .object({
+    asset_category: z.enum(USER_ASSET_CATEGORIES).optional(),
     status: z.enum(EDITABLE_OWNED_PRODUCT_STATUSES).optional(),
     purchase_date: nullableDate.optional(),
+    manufacture_date: nullableDate.optional(),
+    package_size: nullableText(100).optional(),
     opened_at: nullableDate.optional(),
     expires_on: nullableDate.optional(),
     quantity_remaining_percent: z.number().int().min(0).max(100).optional(),
     notes: nullableText(2000).optional(),
+    // Client updates may only clear an override. Setting it is server-controlled
+    // after a completed, asset-bound upload has passed ownership validation.
+    image_override_upload_id: z.null().optional(),
   })
   .strict()
   .refine((update) => Object.keys(update).length > 0, "至少需要更新一个字段。");
@@ -225,16 +252,27 @@ export const ownedProductUpdateSchema = z
 export const ownedProductSchema = z.object({
   id: z.uuid(),
   product_id: z.uuid(),
+  asset_category: z.enum(USER_ASSET_CATEGORIES).optional(),
   status: z.enum(OWNED_PRODUCT_STATUSES),
   purchase_date: nullableDate,
+  manufacture_date: nullableDate.optional(),
   opened_at: nullableDate,
   expires_on: nullableDate.default(null),
   quantity_remaining_percent: z.number().int().min(0).max(100),
   notes: nullableText(2000),
-  archived_at: z.iso.datetime().nullable(),
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  package_size: nullableText(100).optional(),
+  identified_image_url: z.url().nullable().optional(),
+  identified_image_source_url: z.url().nullable().optional(),
+  image_override_upload_id: z.uuid().nullable().optional(),
+  archived_at: z.iso.datetime({ offset: true }).nullable(),
+  created_at: z.iso.datetime({ offset: true }),
+  updated_at: z.iso.datetime({ offset: true }),
   product: productSchema,
+  image: z.object({
+    resolved_url: z.url().nullable(),
+    source: z.enum(["user_override", "identified", "legacy", "catalog", "none"]),
+    has_override: z.boolean(),
+  }).optional(),
 });
 
 export const ownedProductListQuerySchema = z

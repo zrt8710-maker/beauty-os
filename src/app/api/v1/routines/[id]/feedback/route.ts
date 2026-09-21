@@ -22,6 +22,19 @@ export async function POST(
   try {
     const { id } = await context.params;
     const usage = await requestContext.service.recordRoutineUsage(requestContext.user.id, id, input);
+    // The business record above is authoritative. Memory is only a best-effort
+    // copy of the user's actual product feedback and cannot change this response.
+    try {
+      const routine = await requestContext.routines.findById(requestContext.user.id, id);
+      const productNames = new Map(routine?.steps.map((step) => [
+        step.owned_product_id,
+        [step.owned_product.product.brand_name, step.owned_product.product.product_name].filter(Boolean).join(" · ") || "已选产品",
+      ]) ?? []);
+      await requestContext.memory.commitFeedback({ history: usage, productNames });
+    } catch {
+      // A post-persistence memory write may never turn a successful feedback
+      // record into a failed user action.
+    }
     return NextResponse.json({ data: usage }, { status: 201, headers: routineNoStoreHeaders });
   } catch (error) {
     if (error instanceof ZodError) {

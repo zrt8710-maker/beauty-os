@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      capabilities: {
+        Row: {
+          code: string
+          created_at: string
+          definition: string
+          definition_version: number
+          display_name: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          definition: string
+          definition_version?: number
+          display_name: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          definition?: string
+          definition_version?: number
+          display_name?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      care_roles: {
+        Row: {
+          code: string
+          created_at: string
+          definition: string
+          definition_version: number
+          display_name: string
+          is_active: boolean
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          definition: string
+          definition_version?: number
+          display_name: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          definition?: string
+          definition_version?: number
+          display_name?: string
+          is_active?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       catalog_product_ingredients: {
         Row: {
           catalog_product_id: string
@@ -63,10 +123,183 @@ export type Database = {
           },
         ]
       }
+      catalog_product_capabilities: {
+        Row: {
+          assessment_note: string | null
+          capability_code: string
+          catalog_product_id: string
+          confidence: number | null
+          created_at: string
+          id: string
+          reviewed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_note?: string | null
+          capability_code: string
+          catalog_product_id: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          reviewed_at?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_note?: string | null
+          capability_code?: string
+          catalog_product_id?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          reviewed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_product_capabilities_capability_code_fkey"
+            columns: ["capability_code"]
+            isOneToOne: false
+            referencedRelation: "capabilities"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "catalog_product_capabilities_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_product_care_roles: {
+        Row: {
+          assessment_note: string | null
+          assignment_kind: string
+          care_role_code: string
+          catalog_product_id: string
+          confidence: number | null
+          created_at: string
+          id: string
+          reviewed_at: string | null
+          source_locator: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessment_note?: string | null
+          assignment_kind: string
+          care_role_code: string
+          catalog_product_id: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          reviewed_at?: string | null
+          source_locator?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          assessment_note?: string | null
+          assignment_kind?: string
+          care_role_code?: string
+          catalog_product_id?: string
+          confidence?: number | null
+          created_at?: string
+          id?: string
+          reviewed_at?: string | null
+          source_locator?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_product_care_roles_care_role_code_fkey"
+            columns: ["care_role_code"]
+            isOneToOne: false
+            referencedRelation: "care_roles"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "catalog_product_care_roles_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      catalog_product_research_drafts: {
+        Row: {
+          catalog_product_id: string
+          created_at: string
+          created_by: string
+          id: string
+          overall_confidence: number | null
+          research_model: string | null
+          research_payload: Json
+          research_run_id: string | null
+          research_version: number
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          catalog_product_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          overall_confidence?: number | null
+          research_model?: string | null
+          research_payload: Json
+          research_run_id?: string | null
+          research_version: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          catalog_product_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          overall_confidence?: number | null
+          research_model?: string | null
+          research_payload?: Json
+          research_run_id?: string | null
+          research_version?: number
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalog_product_research_drafts_catalog_product_id_fkey"
+            columns: ["catalog_product_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "catalog_product_research_drafts_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalog_products: {
         Row: {
           barcode: string | null
           brand_name: string
+          catalog_image_source_url: string | null
+          catalog_image_url: string | null
           category: string
           confidence: number
           created_at: string
@@ -82,6 +315,8 @@ export type Database = {
         Insert: {
           barcode?: string | null
           brand_name: string
+          catalog_image_source_url?: string | null
+          catalog_image_url?: string | null
           category: string
           confidence: number
           created_at?: string
@@ -97,6 +332,8 @@ export type Database = {
         Update: {
           barcode?: string | null
           brand_name?: string
+          catalog_image_source_url?: string | null
+          catalog_image_url?: string | null
           category?: string
           confidence?: number
           created_at?: string
@@ -178,6 +415,50 @@ export type Database = {
           source_url?: string | null
         }
         Relationships: []
+      }
+      product_capability_evidence: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          direction: string
+          evidence_note: string
+          evidence_type: string
+          id: string
+          product_capability_id: string
+          review_status: string
+          source_locator: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          direction: string
+          evidence_note: string
+          evidence_type: string
+          id?: string
+          product_capability_id: string
+          review_status?: string
+          source_locator?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          direction?: string
+          evidence_note?: string
+          evidence_type?: string
+          id?: string
+          product_capability_id?: string
+          review_status?: string
+          source_locator?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_capability_evidence_product_capability_id_fkey"
+            columns: ["product_capability_id"]
+            isOneToOne: false
+            referencedRelation: "catalog_product_capabilities"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       product_drafts: {
         Row: {
@@ -262,40 +543,49 @@ export type Database = {
       }
       products: {
         Row: {
+          barcode: string | null
           brand_name: string | null
           catalog_product_id: string | null
-          category: string
+          category: string | null
           created_at: string
           created_by_user_id: string
           id: string
+          identity_status: string
           product_name: string
           product_type: string
           subcategory: string
           updated_at: string
+          variant_name: string | null
         }
         Insert: {
+          barcode?: string | null
           brand_name?: string | null
           catalog_product_id?: string | null
           category: string
           created_at?: string
           created_by_user_id: string
           id?: string
+          identity_status?: string
           product_name: string
           product_type: string
           subcategory: string
           updated_at?: string
+          variant_name?: string | null
         }
         Update: {
+          barcode?: string | null
           brand_name?: string | null
           catalog_product_id?: string | null
           category?: string
           created_at?: string
           created_by_user_id?: string
           id?: string
+          identity_status?: string
           product_name?: string
           product_type?: string
           subcategory?: string
           updated_at?: string
+          variant_name?: string | null
         }
         Relationships: [
           {
@@ -317,6 +607,7 @@ export type Database = {
           latitude: number | null
           locale: string
           location_name: string | null
+          long_term_skin_baseline?: Json
           longitude: number | null
           max_am_steps: number
           max_pm_steps: number
@@ -337,6 +628,7 @@ export type Database = {
           latitude?: number | null
           locale?: string
           location_name?: string | null
+          long_term_skin_baseline?: Json
           longitude?: number | null
           max_am_steps?: number
           max_pm_steps?: number
@@ -357,6 +649,7 @@ export type Database = {
           latitude?: number | null
           locale?: string
           location_name?: string | null
+          long_term_skin_baseline?: Json
           longitude?: number | null
           max_am_steps?: number
           max_pm_steps?: number
@@ -504,6 +797,7 @@ export type Database = {
       routines: {
         Row: {
           created_at: string
+          decision_snapshot: Json | null
           excluded_products: Json
           id: string
           period: string
@@ -516,6 +810,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          decision_snapshot?: Json | null
           excluded_products?: Json
           id?: string
           period: string
@@ -528,6 +823,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          decision_snapshot?: Json | null
           excluded_products?: Json
           id?: string
           period?: string
@@ -544,8 +840,11 @@ export type Database = {
         Row: {
           acne_level: number
           created_at: string
+          daily_state?: Json | null
           dryness_level: number
+          field_provenance?: Json | null
           id: string
+          known_fields?: string[] | null
           notes: string | null
           oiliness_level: number
           recorded_date: string
@@ -556,8 +855,11 @@ export type Database = {
         Insert: {
           acne_level?: number
           created_at?: string
+          daily_state?: Json | null
           dryness_level?: number
+          field_provenance?: Json | null
           id?: string
+          known_fields?: string[] | null
           notes?: string | null
           oiliness_level?: number
           recorded_date: string
@@ -568,8 +870,11 @@ export type Database = {
         Update: {
           acne_level?: number
           created_at?: string
+          daily_state?: Json | null
           dryness_level?: number
+          field_provenance?: Json | null
           id?: string
+          known_fields?: string[] | null
           notes?: string | null
           oiliness_level?: number
           recorded_date?: string
@@ -587,6 +892,7 @@ export type Database = {
           id: string
           mime_type: string
           product_id: string | null
+          owned_product_id?: string | null
           purpose: string
           status: string
           storage_path: string
@@ -599,6 +905,7 @@ export type Database = {
           id?: string
           mime_type: string
           product_id?: string | null
+          owned_product_id?: string | null
           purpose: string
           status?: string
           storage_path: string
@@ -611,6 +918,7 @@ export type Database = {
           id?: string
           mime_type?: string
           product_id?: string | null
+          owned_product_id?: string | null
           purpose?: string
           status?: string
           storage_path?: string
@@ -624,16 +932,26 @@ export type Database = {
             referencedRelation: "products"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "upload_assets_owned_product_id_fkey"
+            columns: ["owned_product_id"]
+            isOneToOne: false
+            referencedRelation: "user_owned_products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       usage_history: {
         Row: {
           completion_status: string
           created_at: string
+          feedback_conversation_id: string | null
+          feedback_message_ids: string[]
           id: string
           notes: string | null
           overall_rating: number | null
           period: string
+          routine_role_preferences: Json
           routine_id: string
           skin_reaction_level: number | null
           used_date: string
@@ -642,10 +960,13 @@ export type Database = {
         Insert: {
           completion_status: string
           created_at?: string
+          feedback_conversation_id?: string | null
+          feedback_message_ids?: string[]
           id?: string
           notes?: string | null
           overall_rating?: number | null
           period: string
+          routine_role_preferences?: Json
           routine_id: string
           skin_reaction_level?: number | null
           used_date: string
@@ -654,10 +975,13 @@ export type Database = {
         Update: {
           completion_status?: string
           created_at?: string
+          feedback_conversation_id?: string | null
+          feedback_message_ids?: string[]
           id?: string
           notes?: string | null
           overall_rating?: number | null
           period?: string
+          routine_role_preferences?: Json
           routine_id?: string
           skin_reaction_level?: number | null
           used_date?: string
@@ -726,11 +1050,17 @@ export type Database = {
       }
       user_owned_products: {
         Row: {
+          asset_category?: string
           archived_at: string | null
           created_at: string
           expires_on: string | null
           id: string
+          identified_image_source_url?: string | null
+          identified_image_url?: string | null
+          image_override_upload_id?: string | null
           notes: string | null
+          package_size?: string | null
+          manufacture_date?: string | null
           opened_at: string | null
           product_id: string
           purchase_date: string | null
@@ -740,11 +1070,17 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          asset_category?: string
           archived_at?: string | null
           created_at?: string
           expires_on?: string | null
           id?: string
+          identified_image_source_url?: string | null
+          identified_image_url?: string | null
+          image_override_upload_id?: string | null
           notes?: string | null
+          package_size?: string | null
+          manufacture_date?: string | null
           opened_at?: string | null
           product_id: string
           purchase_date?: string | null
@@ -754,11 +1090,17 @@ export type Database = {
           user_id: string
         }
         Update: {
+          asset_category?: string
           archived_at?: string | null
           created_at?: string
           expires_on?: string | null
           id?: string
+          identified_image_source_url?: string | null
+          identified_image_url?: string | null
+          image_override_upload_id?: string | null
           notes?: string | null
+          package_size?: string | null
+          manufacture_date?: string | null
           opened_at?: string | null
           product_id?: string
           purchase_date?: string | null
@@ -773,6 +1115,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_owned_products_image_override_upload_id_fkey"
+            columns: ["image_override_upload_id"]
+            isOneToOne: false
+            referencedRelation: "upload_assets"
             referencedColumns: ["id"]
           },
         ]
@@ -821,12 +1170,117 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_catalog_seed_v01: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
+      apply_product_knowledge_curation_v01: {
+        Args: { p_input: Json }
+        Returns: Json
+      }
       confirm_product_draft: {
         Args: { p_catalog_product_id?: string; p_draft_id: string }
         Returns: {
           created_owned_product_id: string
           created_product_id: string
         }[]
+      }
+      create_owned_product_with_identity: {
+        Args: {
+          p_barcode: string
+          p_brand_name: string
+          p_catalog_product_id: string
+          p_category: string
+          p_expires_on: string
+          p_notes: string
+          p_opened_at: string
+          p_product_name: string
+          p_product_type: string
+          p_purchase_date: string
+          p_quantity_remaining_percent: number
+          p_resolution_kind: string
+          p_status: string
+          p_subcategory: string
+          p_user_id: string
+          p_variant_name: string
+        }
+        Returns: {
+          archived_at: string | null
+          created_at: string
+          expires_on: string | null
+          id: string
+          notes: string | null
+          package_size: string | null
+          manufacture_date: string | null
+          opened_at: string | null
+          product_id: string
+          purchase_date: string | null
+          quantity_remaining_percent: number
+          status: string
+          updated_at: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "user_owned_products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      create_owned_product_with_identity_idempotent: {
+        Args: {
+          p_asset_category: string
+          p_barcode: string | null
+          p_brand_name: string | null
+          p_catalog_product_id: string | null
+          p_category: string
+          p_expires_on: string | null
+          p_idempotency_key: string
+          p_manufacture_date: string | null
+          p_notes: string | null
+          p_opened_at: string | null
+          p_package_size: string | null
+          p_product_name: string
+          p_product_type: string
+          p_purchase_date: string | null
+          p_quantity_remaining_percent: number
+          p_resolution_kind: string
+          p_status: string
+          p_subcategory: string
+          p_user_id: string
+          p_variant_name: string | null
+        }
+        Returns: Database["public"]["Tables"]["user_owned_products"]["Row"][]
+        SetofOptions: {
+          from: "*"
+          to: "user_owned_products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      find_verified_catalog_products_by_identity: {
+        Args: { p_brand_name: string; p_product_name: string }
+        Returns: {
+          barcode: string | null
+          brand_name: string
+          category: string
+          confidence: number
+          created_at: string
+          id: string
+          primary_source_id: string
+          product_name: string
+          product_type: string
+          status: string
+          subcategory: string
+          updated_at: string
+          variant_name: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "catalog_products"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       normalize_product_match_text: { Args: { value: string }; Returns: string }
       persist_purchase_analysis: {
@@ -885,8 +1339,24 @@ export type Database = {
         }
         Returns: string
       }
+      record_usage_feedback_message: {
+        Args: {
+          p_completion_status: string
+          p_conversation_id: string
+          p_message_id: string
+          p_notes: string | null
+          p_products: Json
+          p_routine_role_preferences: Json
+          p_routine_id: string
+        }
+        Returns: {
+          applied: boolean
+          usage_id: string
+        }[]
+      }
       replace_daily_routine: {
         Args: {
+          p_decision_snapshot: Json
           p_excluded_products: Json
           p_period: string
           p_routine_date: string

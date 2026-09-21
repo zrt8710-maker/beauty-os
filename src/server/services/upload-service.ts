@@ -15,6 +15,8 @@ import type {
   UploadRepository,
 } from "@/server/repositories/upload-repository";
 import type { ProductRepository } from "@/server/repositories/product-repository";
+import type { OwnedProductRepository } from "@/server/repositories/owned-product-repository";
+import type { OwnedProduct } from "@/schemas/product";
 
 const extensionByMimeType = {
   "image/jpeg": "jpg",
@@ -48,6 +50,7 @@ function toUploadAsset(
   return uploadAssetSchema.parse({
     id: row.id,
     product_id: row.product_id,
+    owned_product_id: row.owned_product_id,
     file_name: row.file_name,
     mime_type: row.mime_type,
     file_size: row.file_size,
@@ -76,10 +79,36 @@ export type UploadService = {
   deleteUpload(userId: string, uploadId: unknown): Promise<void>;
 };
 
+/** Resolves only already-authorized signed URLs; storage paths never leave the server. */
+export function resolveOwnedProductImage(ownedProduct: OwnedProduct, uploads: UploadAsset[]): OwnedProduct {
+  const override = ownedProduct.image_override_upload_id
+    ? uploads.find((upload) => upload.id === ownedProduct.image_override_upload_id && upload.status === "ready" && upload.signed_url)
+    : undefined;
+  if (override?.signed_url) {
+    return { ...ownedProduct, image: { resolved_url: override.signed_url, source: "user_override", has_override: true } };
+  }
+  const hasBrokenOverride = ownedProduct.image_override_upload_id != null;
+  if (ownedProduct.product.catalog_image_url) {
+    return { ...ownedProduct, image: { resolved_url: ownedProduct.product.catalog_image_url, source: "catalog", has_override: hasBrokenOverride } };
+  }
+  if (ownedProduct.identified_image_url) {
+    return { ...ownedProduct, image: { resolved_url: ownedProduct.identified_image_url, source: "identified", has_override: hasBrokenOverride } };
+  }
+  const legacy = uploads.find((upload) => upload.product_id === ownedProduct.product_id && upload.owned_product_id === null && upload.status === "ready" && upload.signed_url);
+  if (legacy?.signed_url) {
+    return { ...ownedProduct, image: { resolved_url: legacy.signed_url, source: "legacy", has_override: hasBrokenOverride } };
+  }
+  return {
+    ...ownedProduct,
+    image: { resolved_url: null, source: "none", has_override: hasBrokenOverride },
+  };
+}
+
 export function createUploadService(
   uploads: UploadRepository,
   products: ProductRepository,
   storage: ProductImageStorage,
+  ownedProducts?: OwnedProductRepository,
 ): UploadService {
   return {
     async listUploads(userId, query) {
@@ -96,8 +125,14 @@ export function createUploadService(
       const product = validated.product_id
         ? await products.findById(userId, validated.product_id)
         : null;
+      const ownedProduct = validated.owned_product_id && ownedProducts
+        ? await ownedProducts.findById(userId, validated.owned_product_id)
+        : null;
 
       if (validated.product_id && !product) {
+        throw new UploadNotFoundError("PRODUCT_NOT_FOUND");
+      }
+      if (validated.owned_product_id && !ownedProduct) {
         throw new UploadNotFoundError("PRODUCT_NOT_FOUND");
       }
 
@@ -107,6 +142,7 @@ export function createUploadService(
       const row = await uploads.create(userId, {
         id,
         product_id: validated.product_id,
+        owned_product_id: validated.owned_product_id,
         storage_path: storagePath,
         file_name: validated.file_name,
         mime_type: validated.mime_type,
@@ -170,6 +206,16 @@ export function createUploadService(
 
       if (!completed) {
         throw new UploadNotFoundError("UPLOAD_NOT_FOUND");
+      }
+
+      if (completed.owned_product_id && ownedProducts) {
+        const ownedProduct = await ownedProducts.findById(userId, completed.owned_product_id);
+        if (!ownedProduct) throw new UploadNotFoundError("UPLOAD_NOT_FOUND");
+        const saved = await ownedProducts.update(userId, ownedProduct.id, {
+          image_override_upload_id: completed.id,
+          updated_at: new Date().toISOString(),
+        });
+        if (!saved) throw new UploadNotFoundError("UPLOAD_NOT_FOUND");
       }
 
       return toReadableUploadAsset(completed, storage);

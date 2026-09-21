@@ -26,9 +26,24 @@ type ServerClientOptions = {
 
 describe("Supabase session refresh 与页面保护", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test");
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
+  });
+
+  it.each(["GET", "POST"])("login %s never initializes or refreshes a stale session", async (method) => {
+    mocks.createServerClient.mockImplementation(() => {
+      throw new Error("Login must not wait for Supabase session recovery");
+    });
+    const response = await updateSession(new NextRequest("http://localhost:3000/login", {
+      method,
+      headers: { cookie: "sb-example-auth-token=stale-session" },
+    }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(response.cookies.getAll()).toEqual([]);
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
   });
 
   it("getClaims 刷新 session 时把新 cookie 写回浏览器响应", async () => {
@@ -78,5 +93,12 @@ describe("Supabase session refresh 与页面保护", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/login?next=%2Fapp%3Ftab%3Dtoday",
     );
+  });
+
+  it("malformed session never crashes the proxy and is treated as unauthenticated", async () => {
+    mocks.createServerClient.mockReturnValue({ auth: { getClaims: vi.fn().mockRejectedValue(new TypeError("Cannot read properties of null (reading 'split')")) } });
+    const response = await updateSession(new NextRequest("http://localhost:3000/app"));
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("http://localhost:3000/login?next=%2Fapp");
   });
 });

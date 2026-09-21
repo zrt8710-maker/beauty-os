@@ -1,0 +1,16 @@
+{
+  "schema_version": "product-knowledge-curation/v0.1",
+  "catalog_product_id": "10000000-0000-4000-8000-000000000001",
+  "roles": [
+    {
+      "care_role_code": "moisturizer",
+      "assignment_kind": "primary",
+      "status": "verified",
+      "confidence": 95,
+      "assessment_note": "Replace with the human-reviewed decision summary.",
+      "source_locator": "https://example.com/replace-with-real-source",
+      "reviewed_at": "2026-08-24T00:00:00.000Z"
+    }
+  ],
+  "capabilities": []
+}

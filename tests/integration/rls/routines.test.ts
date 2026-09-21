@@ -177,6 +177,7 @@ function createLiveRoutine(client: SupabaseClient<Database>, ownedProductId: str
     p_period: "am",
     p_skin_snapshot: {},
     p_weather_snapshot: {},
+    p_decision_snapshot: { version: 1 },
     p_excluded_products: [],
     p_steps: [{
       owned_product_id: ownedProductId,

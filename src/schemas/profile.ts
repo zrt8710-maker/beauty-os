@@ -28,6 +28,37 @@ export const TEXTURE_PREFERENCES = [
   "oil",
 ] as const;
 
+export const LONG_TERM_SKIN_AREAS = ["t_zone", "forehead", "nose", "nose_wings", "cheeks", "chin", "full_face"] as const;
+export const RECURRING_TENDENCY_KINDS = ["flaking", "redness", "reactive_discomfort", "blemishes", "small_bumps", "blackheads", "visible_pores", "dullness", "uneven_tone", "post_blemish_marks"] as const;
+export const TENDENCY_LEVELS = ["occasional", "recurring", "frequent", "unknown"] as const;
+/** `tendency` is the persisted v0.3 compatibility field; new writes may also carry its explicit alias. */
+export const FREQUENCY_LEVELS = TENDENCY_LEVELS;
+/** Profile-only meaning: a recurring tendency's usual presentation when it appears. */
+export const USUAL_INTENSITY_LEVELS = ["slight", "noticeable", "marked", "very_marked", "unknown"] as const;
+export const LEGACY_USUAL_INTENSITY_LEVELS = ["mild", "moderate", "marked", "unknown"] as const;
+export const TENDENCY_SOURCES = ["user_declared", "trend_suggestion_confirmed"] as const;
+
+function uniqueArray<T extends z.ZodType<string>>(itemSchema: T, max: number) {
+  return z
+    .array(itemSchema)
+    .max(max)
+    .refine((items) => new Set(items).size === items.length, "不能包含重复项。");
+}
+
+const usualIntensitySchema = z.preprocess((value) => {
+  if (value === "mild") return "slight";
+  if (value === "moderate") return "noticeable";
+  return value;
+}, z.enum(USUAL_INTENSITY_LEVELS));
+
+const longTermSkinBaselineSchema = z.object({
+  usual_oily_areas: z.array(z.enum(LONG_TERM_SKIN_AREAS)).max(LONG_TERM_SKIN_AREAS.length).default([]),
+  usual_dry_areas: z.array(z.enum(LONG_TERM_SKIN_AREAS)).max(LONG_TERM_SKIN_AREAS.length).default([]),
+  recurring_tendencies: z.array(z.object({ kind: z.enum(RECURRING_TENDENCY_KINDS), usual_areas: z.array(z.enum(LONG_TERM_SKIN_AREAS)).max(LONG_TERM_SKIN_AREAS.length).default([]), tendency: z.enum(TENDENCY_LEVELS).default("unknown"), frequency: z.enum(FREQUENCY_LEVELS).optional(), usual_intensity: usualIntensitySchema.default("unknown"), source: z.enum(TENDENCY_SOURCES) }).strict()).max(RECURRING_TENDENCY_KINDS.length).default([]).refine((items) => new Set(items.map((item) => item.kind)).size === items.length, "不能包含重复的长期倾向。"),
+}).strict().default({ usual_oily_areas: [], usual_dry_areas: [], recurring_tendencies: [] });
+
+export type LongTermSkinBaseline = z.infer<typeof longTermSkinBaselineSchema>;
+
 const timezoneSchema = z
   .string()
   .trim()
@@ -61,17 +92,13 @@ const locationSchema = z
     }
   });
 
-const uniqueArray = <T extends z.ZodType<string>>(itemSchema: T, max: number) =>
-  z
-    .array(itemSchema)
-    .max(max)
-    .refine((items) => new Set(items).size === items.length, "不能包含重复项。");
-
 export const profileInputSchema = z
   .object({
     skin_type: z.enum(SKIN_TYPES).nullable(),
+    /** User-declared long-term sensitivity tendency, not today's discomfort. */
     sensitivity_level: z.number().int().min(0).max(4),
     skin_goals: uniqueArray(z.enum(SKIN_GOALS), SKIN_GOALS.length),
+    long_term_skin_baseline: longTermSkinBaselineSchema,
     preferred_routine_length: z.object({
       am_steps: z.number().int().min(1).max(8),
       pm_steps: z.number().int().min(1).max(8),

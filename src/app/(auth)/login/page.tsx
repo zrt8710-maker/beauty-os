@@ -1,8 +1,5 @@
-import { redirect } from "next/navigation";
-
-import { getCurrentUser } from "@/server/auth/get-current-user";
-
 import { LoginForm } from "./login-form";
+import { LoginScene } from "./login-scene";
 
 const errorMessages: Record<string, string> = {
   invalid_code: "登录链接无效或已过期，请重新发送。",
@@ -14,35 +11,34 @@ type LoginPageProps = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const user = await getCurrentUser();
-
-  if (user) {
-    redirect("/app");
-  }
-
   const { error } = await searchParams;
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/40 px-6 py-16">
-      <section className="w-full max-w-md rounded-3xl border bg-card p-8 shadow-sm sm:p-10">
-        <p className="text-sm font-medium tracking-[0.16em] text-muted-foreground uppercase">
-          Beauty OS
+    <LoginScene>
+      <section className="beauty-login-retreat" aria-labelledby="login-heading">
+        <p className="beauty-login-wordmark">
+          <span data-login-depth="6">Beauty OS</span>
         </p>
-        <h1 className="mt-4 text-3xl font-semibold tracking-tight">登录</h1>
-        <p className="mt-3 text-sm leading-6 text-muted-foreground">
-          输入邮箱，我们会发送一次性登录链接，无需密码。
-        </p>
+        <header className="beauty-login-intro">
+          <p className="beauty-login-prelude"><span data-login-depth="2">留一点时间，照顾自己</span></p>
+          <h1 id="login-heading" className="beauty-login-heading"><span data-login-depth="4">欢迎回来</span></h1>
+          <p className="mt-4 text-sm leading-7 text-secondary-foreground">
+            从今天的皮肤感受，继续你的护理日常。
+          </p>
+        </header>
 
         {error && errorMessages[error] ? (
-          <p className="mt-5 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="mt-5 text-sm text-destructive">
             {errorMessages[error]}
           </p>
         ) : null}
 
-        <div className="mt-7">
+        <div className="beauty-login-form-wrap mt-7">
           <LoginForm />
         </div>
+        <p className="beauty-login-footnote">你的记录，你的节奏。</p>
       </section>
-    </main>
+    </LoginScene>
   );
 }
+

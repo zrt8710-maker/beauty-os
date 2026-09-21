@@ -1,6 +1,15 @@
 import { z } from "zod";
 
+import { ROUTINE_PERIODS, ROUTINE_ROLES } from "@/schemas/routine";
+
 export const COMPLETION_STATUSES = ["completed", "partial", "skipped"] as const;
+
+export const routineRolePreferenceSchema = z.object({
+  scope: z.literal("routine_role"),
+  period: z.enum(ROUTINE_PERIODS),
+  routine_role: z.enum(ROUTINE_ROLES),
+  polarity: z.enum(["avoid", "prefer"]),
+}).strict();
 
 const nullableText = (max: number) => z.string().trim().min(1).max(max).nullable().default(null);
 const nullableRating = z.number().int().min(1).max(5).nullable().default(null);
@@ -64,6 +73,7 @@ export const usageHistorySchema = z.object({
   overall_rating: z.number().int().min(1).max(5).nullable(),
   skin_reaction_level: z.number().int().min(0).max(4).nullable(),
   notes: z.string().max(2000).nullable(),
+  routine_role_preferences: z.array(routineRolePreferenceSchema).max(12).default([]),
   created_at: z.iso.datetime(),
   products: z.array(usageHistoryProductSchema),
 });
@@ -77,3 +87,4 @@ export const usageHistoryIdSchema = z.uuid();
 export type UsageRecordInput = z.infer<typeof usageRecordInputSchema>;
 export type UsageHistory = z.infer<typeof usageHistorySchema>;
 export type UsageHistoryListQuery = z.infer<typeof usageHistoryListQuerySchema>;
+export type RoutineRolePreference = z.infer<typeof routineRolePreferenceSchema>;

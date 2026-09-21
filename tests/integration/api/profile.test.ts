@@ -34,19 +34,21 @@ const baseRow = {
   longitude: 121.4737,
   max_am_steps: 4,
   max_pm_steps: 5,
-  onboarding_completed_at: "2026-08-18T08:00:00.000Z",
+  onboarding_completed_at: "2026-08-18T08:00:00+00:00",
   preferences: { texture_preferences: ["lightweight"] },
   sensitivity_level: 2,
   skin_type: "combination",
   timezone: "Asia/Shanghai",
-  updated_at: "2026-08-18T08:00:00.000Z",
+  updated_at: "2026-08-18T08:00:00+00:00",
   user_id: "user-a",
+  long_term_skin_baseline: { usual_oily_areas: ["t_zone"], usual_dry_areas: [], recurring_tendencies: [{ kind: "blackheads", usual_areas: ["nose"], tendency: "recurring", frequency: "recurring", usual_intensity: "moderate", source: "user_declared" }] },
 };
 
 const validInput = {
   skin_type: "combination",
   sensitivity_level: 2,
   skin_goals: ["hydration", "barrier_support"],
+  long_term_skin_baseline: { usual_oily_areas: ["t_zone"], usual_dry_areas: [], recurring_tendencies: [{ kind: "blackheads", usual_areas: ["nose"], tendency: "recurring", frequency: "recurring", usual_intensity: "very_marked", source: "user_declared" }] },
   preferred_routine_length: { am_steps: 4, pm_steps: 5 },
   texture_preferences: ["lightweight"],
   avoid_ingredients: ["fragrance"],
@@ -86,7 +88,12 @@ describe("GET/PUT /api/v1/profile", () => {
     expect(response.status).toBe(200);
     expect(repository.findByUserId).toHaveBeenCalledWith("user-a");
     expect(body.data.skin_type).toBe("combination");
+    expect(body.data.onboarding_completed_at).toBe(
+      "2026-08-18T08:00:00.000Z",
+    );
+    expect(body.data.updated_at).toBe("2026-08-18T08:00:00.000Z");
     expect(body.data).not.toHaveProperty("user_id");
+    expect(body.data.long_term_skin_baseline).toEqual({ usual_oily_areas: ["t_zone"], usual_dry_areas: [], recurring_tendencies: [{ kind: "blackheads", usual_areas: ["nose"], tendency: "recurring", frequency: "recurring", usual_intensity: "noticeable", source: "user_declared" }] });
   });
 
   it("用户可以修改自己的 profile", async () => {
@@ -105,7 +112,8 @@ describe("GET/PUT /api/v1/profile", () => {
         skin_type: "combination",
         sensitivity_level: 2,
         goals: ["hydration", "barrier_support"],
-        onboarding_completed_at: "2026-08-18T08:00:00.000Z",
+        long_term_skin_baseline: validInput.long_term_skin_baseline,
+        onboarding_completed_at: "2026-08-18T08:00:00+00:00",
       }),
     );
   });

@@ -4,6 +4,7 @@ import {
   ownedProductCreateSchema,
   ownedProductUpdateSchema,
   productCreateSchema,
+  productSchema,
 } from "@/schemas/product";
 
 const validOwnedProduct = {
@@ -44,6 +45,21 @@ describe("product schemas", () => {
 
     expect(mismatched.success).toBe(false);
     expect(impersonation.success).toBe(false);
+  });
+
+  it("接受 Supabase 返回的带时区偏移的产品时间戳", () => {
+    expect(
+      productSchema.safeParse({
+        id: "10000000-0000-4000-8000-000000000001",
+        brand_name: null,
+        product_name: "保湿洁面乳",
+        category: "skincare",
+        subcategory: "face_care",
+        product_type: "cleanser",
+        created_at: "2026-08-19T10:00:00+00:00",
+        updated_at: "2026-08-19T10:00:00+00:00",
+      }).success,
+    ).toBe(true);
   });
 
   it("quantity_remaining_percent 接受 0 和 100 边界", () => {

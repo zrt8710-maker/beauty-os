@@ -8,7 +8,7 @@ const sourceSchema = z.object({
   name: z.string().min(1).max(200),
   source_url: z.url().nullable(),
   license_note: z.string().max(2000).nullable(),
-  retrieved_at: z.iso.datetime(),
+  retrieved_at: z.iso.datetime({ offset: true }),
 });
 
 export const catalogProductSchema = z.object({
@@ -23,8 +23,8 @@ export const catalogProductSchema = z.object({
   confidence: z.number().int().min(0).max(100),
   status: z.literal("verified"),
   source: sourceSchema,
-  created_at: z.iso.datetime(),
-  updated_at: z.iso.datetime(),
+  created_at: z.iso.datetime({ offset: true }),
+  updated_at: z.iso.datetime({ offset: true }),
 });
 
 export const catalogIngredientSchema = z.object({

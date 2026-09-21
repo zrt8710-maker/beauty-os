@@ -1,14 +1,16 @@
 import { redirect } from "next/navigation";
 
 import { InventoryManager } from "@/features/inventory/inventory-manager";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/server/auth/get-current-user";
 import { createProductImageStorage } from "@/server/integrations/storage/product-images";
+import { hydrateOwnedProductCatalogImages } from "@/server/inventory/catalog-image-hydration";
 import { createOwnedProductRepository } from "@/server/repositories/owned-product-repository";
 import { createProductRepository } from "@/server/repositories/product-repository";
 import { createUploadRepository } from "@/server/repositories/upload-repository";
 import { createInventoryService } from "@/server/services/inventory-service";
-import { createUploadService } from "@/server/services/upload-service";
+import { createUploadService, resolveOwnedProductImage } from "@/server/services/upload-service";
 
 export default async function InventoryPage() {
   const user = await getCurrentUser();
@@ -19,33 +21,27 @@ export default async function InventoryPage() {
 
   const supabase = await createClient();
   const productRepository = createProductRepository(supabase);
-  const service = createInventoryService(
-    productRepository,
-    createOwnedProductRepository(supabase),
-  );
+  const uploadRepository = createUploadRepository(supabase);
+  const service = createInventoryService(productRepository, createOwnedProductRepository(supabase));
   const uploadService = createUploadService(
-    createUploadRepository(supabase),
+    uploadRepository,
     productRepository,
     createProductImageStorage(supabase),
+    createOwnedProductRepository(supabase),
   );
-  const [products, inventory, uploads] = await Promise.all([
-    service.listProducts(user.id, {}),
+  const [ownedProducts, uploads] = await Promise.all([
     service.listOwnedProducts(user.id, {}),
     uploadService.listUploads(user.id, {}),
   ]);
+  const inventory = await hydrateOwnedProductCatalogImages(
+    ownedProducts,
+    createAdminClient(),
+  );
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
-      <div className="mb-8">
-        <p className="text-sm font-medium text-muted-foreground">Beauty Inventory</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">我的美妆资产库</h1>
-        <p className="mt-3 max-w-2xl leading-7 text-muted-foreground">
-          管理你已经拥有的护肤与彩妆产品，记录使用状态和剩余量。
-        </p>
-      </div>
+    <main className="beauty-ambient-inventory beauty-ambient-page beauty-page min-h-svh">
       <InventoryManager
-        initialInventory={inventory}
-        initialProducts={products}
+        initialInventory={inventory.map((ownedProduct) => resolveOwnedProductImage(ownedProduct, uploads))}
         initialUploads={uploads}
       />
     </main>

@@ -5,10 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/server/auth/get-current-user";
 import { createOwnedProductRepository } from "@/server/repositories/owned-product-repository";
 import { createProductRepository } from "@/server/repositories/product-repository";
+import { createUploadRepository } from "@/server/repositories/upload-repository";
+import { createProductImageStorage } from "@/server/integrations/storage/product-images";
 import {
   InventoryNotFoundError,
   createInventoryService,
 } from "@/server/services/inventory-service";
+import { createUploadService, resolveOwnedProductImage } from "@/server/services/upload-service";
 
 const noStoreHeaders = { "Cache-Control": "private, no-store" };
 
@@ -32,11 +35,16 @@ async function getRequestContext() {
   }
 
   const supabase = await createClient();
+  const productRepository = createProductRepository(supabase);
   return {
     user,
     service: createInventoryService(
-      createProductRepository(supabase),
+      productRepository,
       createOwnedProductRepository(supabase),
+    ),
+    uploadService: createUploadService(
+      createUploadRepository(supabase), productRepository,
+      createProductImageStorage(supabase), createOwnedProductRepository(supabase),
     ),
   };
 }
@@ -52,11 +60,12 @@ export async function GET(request: Request) {
   const query = { status: url.searchParams.get("status") ?? undefined };
 
   try {
-    const inventory = await context.service.listOwnedProducts(
+    const inventory = await context.service.listOwnedProductsWithCatalogImage(
       context.user.id,
       query,
     );
-    return NextResponse.json({ data: inventory }, { headers: noStoreHeaders });
+    const uploads = await context.uploadService.listUploads(context.user.id, {});
+    return NextResponse.json({ data: inventory.map((ownedProduct) => resolveOwnedProductImage(ownedProduct, uploads)) }, { headers: noStoreHeaders });
   } catch (error) {
     if (error instanceof ZodError) {
       return errorResponse(

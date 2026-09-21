@@ -30,6 +30,23 @@ describe("profileInputSchema", () => {
     });
 
     expect(result.success).toBe(true);
+    if (result.success) expect(result.data.long_term_skin_baseline).toEqual({ usual_oily_areas: [], usual_dry_areas: [], recurring_tendencies: [] });
+  });
+
+  it("接受用户声明的区域与长期反复倾向", () => {
+    const result = profileInputSchema.safeParse({ ...validInput, long_term_skin_baseline: { usual_oily_areas: ["t_zone", "nose"], usual_dry_areas: ["nose_wings"], recurring_tendencies: [{ kind: "small_bumps", usual_areas: ["forehead"], tendency: "recurring", frequency: "recurring", usual_intensity: "noticeable", source: "user_declared" }] } });
+    expect(result.success).toBe(true);
+  });
+
+  it("keeps legacy tendency rows compatible while intensity remains optional knowledge", () => {
+    const result = profileInputSchema.safeParse({ ...validInput, long_term_skin_baseline: { usual_oily_areas: [], usual_dry_areas: [], recurring_tendencies: [{ kind: "redness", usual_areas: ["cheeks"], tendency: "frequent", source: "user_declared" }] } });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.long_term_skin_baseline.recurring_tendencies[0]).toMatchObject({ tendency: "frequent", usual_intensity: "unknown" });
+  });
+
+  it("keeps frequency and usual intensity independent", () => {
+    const result = profileInputSchema.safeParse({ ...validInput, long_term_skin_baseline: { usual_oily_areas: [], usual_dry_areas: [], recurring_tendencies: [{ kind: "blemishes", usual_areas: [], tendency: "occasional", frequency: "occasional", usual_intensity: "marked", source: "user_declared" }] } });
+    expect(result.success).toBe(true);
   });
 
   it("拒绝越界的敏感程度和步骤数", () => {

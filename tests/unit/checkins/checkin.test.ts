@@ -10,6 +10,10 @@ const validInput = {
   acne_level: 0,
   notes: null,
   recorded_date: "2026-08-18",
+  known_fields: ["dryness_level", "oiliness_level", "redness_level", "sensitivity_level", "acne_level"],
+  field_provenance: {
+    dryness_level: ["manual"], oiliness_level: ["manual"], redness_level: ["manual"], sensitivity_level: ["manual"], acne_level: ["manual"],
+  },
 };
 
 describe("skin checkin schema", () => {
@@ -31,5 +35,25 @@ describe("skin checkin schema", () => {
       skinCheckinInputSchema.safeParse({ ...validInput, user_id: "user-b" })
         .success,
     ).toBe(false);
+  });
+
+  it("允许只确认一个字段，并保留其余字段为 unknown", () => {
+    expect(skinCheckinInputSchema.safeParse({
+      ...validInput,
+      known_fields: ["dryness_level"],
+      field_provenance: { dryness_level: ["manual"] },
+    }).success).toBe(true);
+  });
+
+  it("拒绝 unknown 字段的来源和不支持的来源", () => {
+    expect(skinCheckinInputSchema.safeParse({
+      ...validInput,
+      known_fields: [],
+      field_provenance: { dryness_level: ["manual"] },
+    }).success).toBe(false);
+    expect(skinCheckinInputSchema.safeParse({
+      ...validInput,
+      field_provenance: { dryness_level: ["provider"] },
+    }).success).toBe(false);
   });
 });

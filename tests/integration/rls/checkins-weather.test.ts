@@ -16,6 +16,16 @@ const checkinMigration = readFileSync(
   "utf8",
 ).toLowerCase();
 
+const checkinSemanticsMigration = readFileSync(
+  fileURLToPath(
+    new URL(
+      "../../../supabase/migrations/20260829000000_add_skin_checkin_field_semantics.sql",
+      import.meta.url,
+    ),
+  ),
+  "utf8",
+).toLowerCase();
+
 const weatherMigration = readFileSync(
   fileURLToPath(
     new URL(
@@ -51,6 +61,12 @@ describe("check-in 与 weather migration 契约", () => {
     ]) {
       expect(checkinMigration).toContain(`check (${field} between 0 and 4)`);
     }
+  });
+
+  it("保留历史记录的 unknown/legacy 状态，并添加字段级语义元数据", () => {
+    expect(checkinSemanticsMigration).toContain("add column known_fields text[]");
+    expect(checkinSemanticsMigration).toContain("add column field_provenance jsonb");
+    expect(checkinSemanticsMigration).toContain("null denotes a pre-v0.1 legacy record");
   });
 
   it("天气每日唯一、保存 JSON 快照并限制湿度与 UV", () => {

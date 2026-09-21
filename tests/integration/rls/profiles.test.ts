@@ -140,4 +140,14 @@ describeLive("profiles 双用户 RLS 隔离（真实 Supabase）", () => {
     expect(profileA.data?.display_name).toBe("RLS user A");
     expect(profileB.data?.display_name).toBe("RLS user B");
   });
+
+  it("认证用户保存长期程度后刷新仍能读回", async () => {
+    const baseline = { usual_oily_areas: ["t_zone"], usual_dry_areas: [], recurring_tendencies: [{ kind: "small_bumps", usual_areas: ["forehead"], tendency: "recurring", frequency: "recurring", usual_intensity: "very_marked", source: "user_declared" }] };
+    const saved = await clientA.from("profiles").update({ long_term_skin_baseline: baseline }).eq("user_id", userAId).select("long_term_skin_baseline").single();
+    expect(saved.error).toBeNull();
+    expect(saved.data?.long_term_skin_baseline).toEqual(baseline);
+    const refreshed = await clientA.from("profiles").select("long_term_skin_baseline").eq("user_id", userAId).single();
+    expect(refreshed.error).toBeNull();
+    expect(refreshed.data?.long_term_skin_baseline).toEqual(baseline);
+  });
 });

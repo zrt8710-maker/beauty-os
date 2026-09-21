@@ -11,6 +11,12 @@ function copyResponseCookies(source: NextResponse, target: NextResponse): void {
 }
 
 export async function updateSession(request: NextRequest) {
+  // Signing in must remain possible even when an existing session cannot refresh.
+  // Protected pages still verify claims through the normal path below.
+  if (request.nextUrl.pathname === "/login") {
+    return NextResponse.next({ request });
+  }
+
   const env = getPublicEnv();
   let response = NextResponse.next({ request });
 
@@ -37,7 +43,18 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const { data, error } = await supabase.auth.getClaims();
+  let data: { claims?: { sub?: unknown } } | null = null;
+  let error: unknown = null;
+  try {
+    const result = await supabase.auth.getClaims();
+    data = result.data;
+    error = result.error;
+  } catch {
+    // A malformed cookie is never accepted as a session. Continue through the
+    // normal unauthenticated redirect path rather than returning a proxy 500.
+    data = null;
+    error = new Error("MALFORMED_AUTH_SESSION");
+  }
   const isAuthenticated = !error && typeof data?.claims?.sub === "string";
   const isProtectedRoute = request.nextUrl.pathname.startsWith("/app");
 
@@ -51,16 +68,6 @@ export async function updateSession(request: NextRequest) {
     );
 
     const redirectResponse = NextResponse.redirect(loginUrl);
-    copyResponseCookies(response, redirectResponse);
-    return redirectResponse;
-  }
-
-  if (request.nextUrl.pathname === "/login" && isAuthenticated) {
-    const appUrl = request.nextUrl.clone();
-    appUrl.pathname = "/app";
-    appUrl.search = "";
-
-    const redirectResponse = NextResponse.redirect(appUrl);
     copyResponseCookies(response, redirectResponse);
     return redirectResponse;
   }

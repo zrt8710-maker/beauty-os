@@ -1,0 +1,28 @@
+version: 1
+scope: "Test V1 ingredient Pack"
+principles:
+  - "Ingredient presence is not product efficacy."
+ingredients:
+  - canonical_name: Niacinamide
+    display_name_zh: 烟酰胺
+    functions: [皮脂调理相关, 屏障支持相关]
+    statement_zh: 外用研究支持烟酰胺与皮脂调理、角质层屏障支持及肤色改善相关。
+    use_for_today_explanation: [结合产品描述和今天皮肤状态解释。]
+    boundary: [不能仅凭含烟酰胺就断言产品一定控油。]
+    confidence: 92
+    sources: [https://pubmed.ncbi.nlm.nih.gov/16766489/]
+  - canonical_name: Sulfur
+    display_name_zh: 硫
+    aliases_zh: [胶态硫]
+    functions: [角质调理相关]
+    statement_zh: 外用硫具有角质调理相关作用。
+    boundary: [不能仅凭含硫就断言产品一定祛痘。]
+    confidence: 88
+    sources: [https://pubmed.ncbi.nlm.nih.gov/15303787/]
+  - canonical_name: Mandelic Acid
+    display_name_zh: 杏仁酸
+    functions: [AHA 角质调理相关]
+    statement_zh: 杏仁酸常见于化学焕肤配方。
+    boundary: [不能直接推断产品强度或效果。]
+    confidence: 85
+    sources: [https://pubmed.ncbi.nlm.nih.gov/31553119/]

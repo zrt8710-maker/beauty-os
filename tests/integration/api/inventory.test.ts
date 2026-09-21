@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   getCurrentUser: vi.fn(),
   createProductRepository: vi.fn(),
   createOwnedProductRepository: vi.fn(),
+  createUploadRepository: vi.fn(),
+  createProductImageStorage: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
@@ -19,6 +21,12 @@ vi.mock("@/server/repositories/product-repository", () => ({
 }));
 vi.mock("@/server/repositories/owned-product-repository", () => ({
   createOwnedProductRepository: mocks.createOwnedProductRepository,
+}));
+vi.mock("@/server/repositories/upload-repository", () => ({
+  createUploadRepository: mocks.createUploadRepository,
+}));
+vi.mock("@/server/integrations/storage/product-images", () => ({
+  createProductImageStorage: mocks.createProductImageStorage,
 }));
 
 import { GET as getOwnedProducts, POST as postOwnedProduct } from "@/app/api/v1/owned-products/route";
@@ -68,6 +76,7 @@ describe("inventory API", () => {
     };
     ownedProducts = {
       listByUserId: vi.fn().mockResolvedValue([ownedRow]),
+      listByUserIdWithCatalogImage: vi.fn().mockResolvedValue([ownedRow]),
       findById: vi.fn().mockResolvedValue(ownedRow),
       create: vi.fn().mockResolvedValue(ownedRow),
       update: vi.fn().mockResolvedValue(ownedRow),
@@ -81,6 +90,10 @@ describe("inventory API", () => {
     mocks.getCurrentUser.mockResolvedValue({ id: "user-a", email: "a@example.com" });
     mocks.createProductRepository.mockReturnValue(products);
     mocks.createOwnedProductRepository.mockReturnValue(ownedProducts);
+    mocks.createUploadRepository.mockReturnValue({
+      listByUserId: vi.fn().mockResolvedValue([]),
+    });
+    mocks.createProductImageStorage.mockReturnValue({});
   });
 
   it("用户可以创建自己的产品", async () => {
@@ -109,7 +122,7 @@ describe("inventory API", () => {
       category: undefined,
       search: undefined,
     });
-    expect(ownedProducts.listByUserId).toHaveBeenCalledWith("user-a", {
+    expect(ownedProducts.listByUserIdWithCatalogImage).toHaveBeenCalledWith("user-a", {
       status: undefined,
     });
   });

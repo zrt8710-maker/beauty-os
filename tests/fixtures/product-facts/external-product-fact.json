@@ -1,0 +1,31 @@
+{
+  "schema_version": "external-product-fact/v0.1",
+  "fact_id": "open_beauty_facts:4006381333931:1787529600",
+  "identity": {
+    "brand_name": "Beauty OS Labs",
+    "product_name": "Daily Cleanser",
+    "variant_name": "100 ml",
+    "barcode": "4006381333931",
+    "quantity": "100 ml"
+  },
+  "label": {
+    "categories_tags": ["en:facial-cleansers"],
+    "ingredients_text": "Aqua, Glycerin"
+  },
+  "media": {
+    "image_front_url": null,
+    "stored": false
+  },
+  "source": {
+    "provider_code": "open_beauty_facts",
+    "source_type": "open_dataset",
+    "source_name": "Open Beauty Facts",
+    "source_url": "https://example.test/product/4006381333931",
+    "raw_record_id": "4006381333931",
+    "retrieved_at": "2026-08-24T03:00:00.000Z",
+    "modified_at": "2026-08-24T00:00:00.000Z",
+    "license": "Database: ODbL 1.0; product images: CC BY-SA 3.0.",
+    "source_quality": 80
+  },
+  "warnings": []
+}

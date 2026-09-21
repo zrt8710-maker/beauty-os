@@ -1,5 +1,16 @@
 # Beauty OS
 
+## 当前发布状态（2026-09-21）
+
+当前工作区已接入 AI 方案决策、解释、皮肤对话、产品识别与使用反馈。以下 v0.3 描述属于历史文档，不代表现有功能或上线状态。上线验收、访问限制、环境差异及待确认项以 [发布验收报告](docs/RELEASE_READINESS_2026-09-21.md) 为准。
+
+- 首个发布目标：可用于简历演示的 WebApp。微信小程序单独验收。
+- 生产构建成功不等于线上业务验收通过。
+- OpenViking 当前仅支持单用户开发模式，生产环境禁用；不得将此配置直接开放为多用户记忆。
+
+<details>
+<summary>历史 v0.3 文档（部分功能描述已过期）</summary>
+
 Beauty OS 是一个个人 AI 美妆管理 WebApp。它的核心不是帮助用户购买更多产品，而是管理用户已经拥有的护肤和彩妆资产，并基于皮肤状态、天气、库存和真实使用反馈，生成可解释的日常方案与购买判断。
 
 当前版本：**v0.3 Release Candidate**。
@@ -68,7 +79,7 @@ AI 不得直接创建用户资产、确认产品草稿或写入购买评分。
 
 ### 身份与档案
 
-- Email OTP / Magic Link 登录
+- 邮箱 Magic Link 登录（登录与注册共用入口）
 - Session 刷新和受保护页面
 - 可选的单邮箱访问限制
 - 长期皮肤档案、目标与护肤偏好
@@ -222,9 +233,11 @@ cp .env.example .env.local
 3. 在 Supabase Auth URL Configuration 中设置：
    - Site URL：`NEXT_PUBLIC_APP_URL`
    - Redirect URL：`${NEXT_PUBLIC_APP_URL}/auth/callback`
-4. 个人生产实例设置 `AUTH_ALLOWED_EMAIL`。
-5. 按顺序应用 `supabase/migrations/` 中的 migration。
-6. 确认 `product-images` bucket 为 private。
+4. 当前 Web 登录使用 Supabase 默认 Magic Link 模板；登录邮件保留 `{{ .ConfirmationURL }}`，链接回调到 `/auth/callback`。
+5. 生产环境配置可投递的 SMTP 与发件人域名，并实际验证收件、延迟和垃圾邮件表现。
+6. 个人生产实例设置 `AUTH_ALLOWED_EMAIL`。
+7. 按顺序应用 `supabase/migrations/` 中的 migration。
+8. 确认 `product-images` bucket 为 private。
 
 本地 Supabase：
 
@@ -342,3 +355,5 @@ Beauty OS v0.3 已在 staging Supabase 项目完成验证：
 
 - [Beauty OS v0.2 Development Specification](./BEAUTY_OS_V0.2_DEVELOPMENT_SPECIFICATION.md)
 - [Beauty OS v0.1 Technical Design](./BEAUTY_OS_TECHNICAL_DESIGN.md)
+
+</details>

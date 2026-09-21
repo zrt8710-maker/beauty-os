@@ -1,5 +1,7 @@
 import "server-only";
 
+import { z } from "zod";
+
 import {
   usageHistoryIdSchema,
   usageHistoryListQuerySchema,
@@ -8,18 +10,34 @@ import {
   type UsageHistory,
   type UsageHistoryListQuery,
 } from "@/schemas/usage";
-import type { RoutineRepository } from "@/server/repositories/routine-repository";
+import type { RoutineRepository, RoutineWithStepsRow } from "@/server/repositories/routine-repository";
 import type {
   ProductUsageStats,
   UsageHistoryWithProductsRow,
   UsageRepository,
 } from "@/server/repositories/usage-repository";
+import type { UsageFeedbackMessageInput } from "@/server/services/usage-feedback-conversation-service";
+import type { RoutineRolePreference } from "@/schemas/usage";
 
 export class UsageRoutineNotFoundError extends Error {
   constructor() {
     super("USAGE_ROUTINE_NOT_FOUND");
     this.name = "UsageRoutineNotFoundError";
   }
+}
+
+const databaseIsoTimestampSchema = z.iso.datetime({ offset: true });
+
+/**
+ * PostgREST may serialize timestamptz with an explicit UTC offset (`+00:00`).
+ * The public UsageHistory DTO is deliberately canonical and accepts UTC `Z`.
+ */
+function normalizeUsageTimestamp(value: unknown, field: string): string {
+  if (typeof value !== "string" || !databaseIsoTimestampSchema.safeParse(value).success) {
+    throw new TypeError(`${field} must be an ISO datetime.`);
+  }
+
+  return new Date(value).toISOString();
 }
 
 function toUsageHistory(row: UsageHistoryWithProductsRow): UsageHistory {
@@ -32,7 +50,8 @@ function toUsageHistory(row: UsageHistoryWithProductsRow): UsageHistory {
     overall_rating: row.overall_rating,
     skin_reaction_level: row.skin_reaction_level,
     notes: row.notes,
-    created_at: row.created_at,
+    routine_role_preferences: row.routine_role_preferences,
+    created_at: normalizeUsageTimestamp(row.created_at, "usage_history.created_at"),
     products: row.products.map((product) => ({
       id: product.id,
       usage_history_id: product.usage_history_id,
@@ -42,19 +61,25 @@ function toUsageHistory(row: UsageHistoryWithProductsRow): UsageHistory {
       reaction_tags: product.reaction_tags,
       texture_feedback: product.texture_feedback,
       notes: product.notes,
-      created_at: product.created_at,
+      created_at: normalizeUsageTimestamp(
+        product.created_at,
+        "usage_history_products.created_at",
+      ),
     })),
   });
 }
 
 export type UsageService = {
   recordRoutineUsage(userId: string, routineId: unknown, input: unknown): Promise<UsageHistory>;
+  recordFeedbackMessage(userId: string, routineId: unknown, input: UsageFeedbackMessageInput, existingRoutine?: RoutineWithStepsRow): Promise<{ history: UsageHistory; applied: boolean }>;
   listUsageHistory(userId: string, query: unknown): Promise<UsageHistory[]>;
   getRecentProductStats(
     userId: string,
     ownedProductIds: string[],
     today: string,
+    period?: "am" | "pm",
   ): Promise<Map<string, ProductUsageStats>>;
+  getRoutineRolePreferences(userId: string, period: "am" | "pm"): Promise<RoutineRolePreference[]>;
 };
 
 export function createUsageService(
@@ -76,13 +101,25 @@ export function createUsageService(
       }));
     },
 
+    async recordFeedbackMessage(userId, routineId, input, existingRoutine) {
+      const id = usageHistoryIdSchema.parse(routineId);
+      const routine = existingRoutine?.id === id ? existingRoutine : await routines.findById(userId, id);
+      if (!routine) throw new UsageRoutineNotFoundError();
+      const result = await usage.recordFeedbackMessage({ userId, routineId: id, feedback: input });
+      return { history: toUsageHistory(result.history), applied: result.applied };
+    },
+
     async listUsageHistory(userId, query) {
       const validated: UsageHistoryListQuery = usageHistoryListQuerySchema.parse(query);
       return (await usage.listByUserId(userId, validated.limit)).map(toUsageHistory);
     },
 
-    async getRecentProductStats(userId, ownedProductIds, today) {
-      return usage.getRecentProductStats(userId, ownedProductIds, dateDaysAgo(today, 29));
+    async getRecentProductStats(userId, ownedProductIds, today, period) {
+      return usage.getRecentProductStats(userId, ownedProductIds, dateDaysAgo(today, 29), period);
+    },
+
+    async getRoutineRolePreferences(userId, period) {
+      return usage.getRoutineRolePreferences(userId, period);
     },
   };
 }

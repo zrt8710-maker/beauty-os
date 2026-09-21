@@ -93,6 +93,21 @@ export async function POST(request: Request) {
       );
     }
 
+    console.error("[skin-checkin-save] write failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      ...(process.env.NODE_ENV === "development"
+        ? {
+            message: error instanceof Error ? error.message : String(error),
+            cause: error instanceof Error && error.cause && typeof error.cause === "object"
+              ? {
+                  code: "code" in error.cause ? error.cause.code : undefined,
+                  message: "message" in error.cause ? error.cause.message : undefined,
+                  details: "details" in error.cause ? error.cause.details : undefined,
+                }
+              : undefined,
+          }
+        : {}),
+    });
     return errorResponse(500, "SKIN_CHECKIN_WRITE_FAILED", "无法保存皮肤记录。");
   }
 }

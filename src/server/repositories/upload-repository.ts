@@ -11,6 +11,7 @@ type UploadAssetWrite = Pick<
   UploadAssetRow,
   | "id"
   | "product_id"
+  | "owned_product_id"
   | "storage_path"
   | "file_name"
   | "mime_type"

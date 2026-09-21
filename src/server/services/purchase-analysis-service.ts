@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { Json } from "@/db/database.types";
-import { purchaseAnalysisCreateSchema, purchaseAnalysisIdSchema, purchaseAnalysisListQuerySchema, purchaseAnalysisSchema, type PurchaseAnalysis, type PurchaseEvidence, type PurchaseReasonCode } from "@/schemas/purchase-analysis";
+import { purchaseAnalysisCreateSchema, purchaseAnalysisIdSchema, purchaseAnalysisListQuerySchema, purchaseAnalysisSchema, purchaseEvidenceSchema, type PurchaseAnalysis, type PurchaseEvidence, type PurchaseReasonCode } from "@/schemas/purchase-analysis";
 import type { ProductType } from "@/schemas/product";
 import type { CatalogProductIngredientWithRelationsRow, CatalogProductWithSourceRow, KnowledgeRepository } from "@/server/repositories/knowledge-repository";
 import type { OwnedProductRepository, OwnedProductWithProductRow } from "@/server/repositories/owned-product-repository";
@@ -29,7 +29,7 @@ const roleByType: Partial<Record<ProductType, string>> = {
 };
 export function calculatePurchaseAnalysis(context: PurchaseRuleContext): PurchaseRuleResult {
   const role = roleByType[context.candidate.productType] ?? context.candidate.productType;
-  const usable = context.inventory.filter((item) => ["active", "unopened", "paused"].includes(item.status) && item.quantity_remaining_percent > 0 && !item.archived_at);
+  const usable = context.inventory.filter((item) => !["finished", "discarded", "archived"].includes(item.status) && item.quantity_remaining_percent > 0 && !item.archived_at);
   const alternatives = usable.flatMap((item) => {
     const itemRole = roleByType[item.product.product_type as ProductType] ?? item.product.product_type;
     const match = context.candidate.catalogProductId && item.product.catalog_product_id === context.candidate.catalogProductId
@@ -102,8 +102,6 @@ export function calculatePurchaseAnalysis(context: PurchaseRuleContext): Purchas
   if (averageRating !== null && averageRating >= 4) usageProbabilityScore += 10;
   if (averageRating !== null && averageRating < 3) { usageProbabilityScore -= 15; reasonCodes.push("LOW_ROLE_USAGE_HISTORY"); }
   if (highReactionCount) usageProbabilityScore -= Math.min(30, highReactionCount * 10);
-  const unopenedCount = coveredAlternatives.filter((item) => item.status === "unopened").length;
-  if (unopenedCount >= 2) { usageProbabilityScore -= 30; reasonCodes.push("UNUSED_INVENTORY_PRESSURE"); }
   usageProbabilityScore = clamp(usageProbabilityScore);
   if (recentUsageCount === 0) { unknowns.push("最近 30 天没有具备明确关联证据的产品反馈，使用概率仅基于库存状态。" ); reasonCodes.push("NO_RELEVANT_USAGE_HISTORY"); }
   if (context.candidate.source === "manual" && context.candidate.ingredients.length > 0) unknowns.push("手工填写的候选成分未经知识库来源验证。");
@@ -149,20 +147,22 @@ export function createPurchaseAnalysisService(dependencies: { analyses: Purchase
       }
       const [profile, inventory] = await Promise.all([dependencies.profiles.findByUserId(userId), dependencies.ownedProducts.listByUserId(userId, {})]);
       const catalogIds = [...new Set(inventory.map((item) => item.product.catalog_product_id).filter((id): id is string => Boolean(id)))];
-      const ingredientNamesByCatalog = new Map(
-        await Promise.all(catalogIds.map(async (catalogId) => {
+      const timezone = profile?.timezone ?? "Asia/Shanghai";
+      const today = dateInTimeZone((dependencies.now ?? (() => new Date()))(), timezone);
+      // Ingredient evidence and usage history are independent; keep both complete.
+      const [ingredientEntries, feedbackStats] = await Promise.all([
+        Promise.all(catalogIds.map(async (catalogId) => {
           const ingredients = await dependencies.knowledge.listVerifiedProductIngredients(catalogId);
           return [catalogId, ingredients.flatMap((item) => [item.ingredient.inci_name, item.ingredient.display_name, ...item.ingredient.aliases].filter((name): name is string => Boolean(name)))] as const;
         })),
-      );
+        dependencies.usage.getRecentProductStats(userId, inventory.map((item) => item.id), today),
+      ]);
+      const ingredientNamesByCatalog = new Map(ingredientEntries);
       const verifiedIngredientNamesByOwnedProduct = new Map(
         inventory.flatMap((item) => item.product.catalog_product_id
           ? [[item.id, ingredientNamesByCatalog.get(item.product.catalog_product_id) ?? []] as const]
           : []),
       );
-      const timezone = profile?.timezone ?? "Asia/Shanghai";
-      const today = dateInTimeZone((dependencies.now ?? (() => new Date()))(), timezone);
-      const feedbackStats = await dependencies.usage.getRecentProductStats(userId, inventory.map((item) => item.id), today);
       return toAnalysis(await dependencies.analyses.create(userId, toWrite(calculatePurchaseAnalysis({ candidate, profile, inventory, feedbackStats, verifiedIngredientNamesByOwnedProduct }))));
     },
     async list(userId, query) { const { limit } = purchaseAnalysisListQuerySchema.parse(query); return (await dependencies.analyses.listByUserId(userId, limit)).map(toAnalysis); },
@@ -172,7 +172,77 @@ export function createPurchaseAnalysisService(dependencies: { analyses: Purchase
 
 function candidateFromCatalog(product: CatalogProductWithSourceRow, ingredients: CatalogProductIngredientWithRelationsRow[]): Candidate { return { catalogProductId: product.id, brandName: product.brand_name, productName: product.product_name, category: product.category, productType: product.product_type as ProductType, confidence: product.confidence, source: "catalog", ingredients: ingredients.map((item) => ({ inciName: item.ingredient.inci_name, displayName: item.ingredient.display_name, aliases: item.ingredient.aliases, kind: item.ingredient.ingredient_kind, confidence: item.confidence })) }; }
 function toWrite(result: PurchaseRuleResult) { return { ...result, candidate_snapshot: result.candidate_snapshot as Json, inventory_snapshot: result.inventory_snapshot as Json, goal_snapshot: result.goal_snapshot as Json, evidence: result.evidence as unknown as Json, unknowns: result.unknowns as Json }; }
-function toAnalysis(row: PurchaseAnalysisRow): PurchaseAnalysis { return purchaseAnalysisSchema.parse({ ...row }); }
+function toAnalysis(row: PurchaseAnalysisRow): PurchaseAnalysis {
+  const { evidence, unknowns } = normalizeHistoricalEvidence(row.evidence, row.unknowns);
+  return purchaseAnalysisSchema.parse({
+    ...row,
+    evidence,
+    unknowns,
+    created_at: normalizePurchaseAnalysisCreatedAt(row.created_at),
+  });
+}
+
+const legacyDatabaseTimestampPattern =
+  /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d{1,6})?$/;
+
+function normalizePurchaseAnalysisCreatedAt(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new TypeError("purchase_analyses.created_at must be a non-empty timestamp string.");
+  }
+  const candidate = legacyDatabaseTimestampPattern.test(value)
+    ? `${value.replace(" ", "T")}Z`
+    : value;
+  const parsed = new Date(candidate);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new TypeError("purchase_analyses.created_at must be a valid datetime.");
+  }
+  return parsed.toISOString();
+}
+
+function normalizeHistoricalEvidence(evidence: Json, storedUnknowns: Json) {
+  const source = isJsonObject(evidence) ? evidence : {};
+  const unknowns = Array.isArray(storedUnknowns)
+    ? storedUnknowns.filter((item): item is string => typeof item === "string")
+    : [];
+  const missing: string[] = [];
+
+  const alternatives = purchaseEvidenceSchema.shape.alternatives.safeParse(source.alternatives);
+  if (!alternatives.success) missing.push("历史分析未记录与已有资产的关系。");
+  const gap = purchaseEvidenceSchema.shape.gap.safeParse(source.gap);
+  if (!gap.success) missing.push("历史分析未记录现有缺口证据。");
+  const compatibility = purchaseEvidenceSchema.shape.compatibility.safeParse(source.compatibility);
+  if (!compatibility.success) missing.push("历史分析未记录个人匹配证据。");
+  const usage = purchaseEvidenceSchema.shape.usage.safeParse(source.usage);
+  if (!usage.success) missing.push("历史分析未记录使用概率证据。");
+  const risks = purchaseEvidenceSchema.shape.risks.safeParse(source.risks);
+  if (!risks.success) missing.push("历史分析未记录风险证据。");
+
+  return {
+    evidence: {
+      alternatives: alternatives.success ? alternatives.data : [],
+      gap: gap.success ? gap.data : {
+        role: "unknown",
+        active_role_count: 0,
+        message: "历史分析未记录现有缺口证据。",
+      },
+      compatibility: compatibility.success ? compatibility.data : {
+        matched_goals: [],
+        avoid_ingredient_matches: [],
+      },
+      usage: usage.success ? usage.data : {
+        recent_usage_count: 0,
+        average_rating: null,
+        high_reaction_count: 0,
+      },
+      risks: risks.success ? risks.data : [],
+    },
+    unknowns: [...new Set([...unknowns, ...missing])],
+  };
+}
+
+function isJsonObject(value: Json): value is { [key: string]: Json | undefined } {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 function normalize(value: string) { return value.toLocaleLowerCase("en-US").normalize("NFKC").replace(/[\s\p{P}\p{S}_]+/gu, ""); }
 function clamp(value: number) { return Math.max(0, Math.min(100, Math.round(value))); }
 function dateInTimeZone(date: Date, timeZone: string) { const parts = new Intl.DateTimeFormat("en", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(date); const values = Object.fromEntries(parts.map((part) => [part.type, part.value])); return `${values.year}-${values.month}-${values.day}`; }

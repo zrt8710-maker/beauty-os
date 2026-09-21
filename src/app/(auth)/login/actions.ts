@@ -12,24 +12,32 @@ export async function sendMagicLink(
   _previousState: LoginActionState,
   formData: FormData,
 ): Promise<LoginActionState> {
-  const env = getPublicEnv();
   const authConfig = getAuthConfig();
+  const appUrl = getPublicEnv().NEXT_PUBLIC_APP_URL;
   const supabase = await createClient();
 
   return requestMagicLink(
     {
       email: formData.get("email"),
-      redirectTo: new URL("/auth/callback", env.NEXT_PUBLIC_APP_URL).toString(),
+      redirectTo: new URL("/auth/callback", appUrl).toString(),
       allowedEmail: authConfig.allowedEmail,
     },
     async ({ email, redirectTo }) => {
       const { error } = await supabase.auth.signInWithOtp({
         email,
         options: {
-          emailRedirectTo: redirectTo,
           shouldCreateUser: true,
+          emailRedirectTo: redirectTo,
         },
       });
+
+      if (error) {
+        console.warn("[auth] Magic Link request rejected", {
+          name: error.name,
+          status: error.status,
+          code: error.code,
+        });
+      }
 
       return { error };
     },

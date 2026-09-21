@@ -1,0 +1,15 @@
+.git
+.next
+node_modules
+.pnpm-store
+.env*
+.agents
+.codex
+.tmp
+.playwright-cli
+output
+artifacts
+coverage
+*.log
+*.tsbuildinfo
+supabase/.temp

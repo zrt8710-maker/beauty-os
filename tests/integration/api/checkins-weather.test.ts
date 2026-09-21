@@ -50,6 +50,8 @@ const checkinRow = {
   acne_level: 0,
   notes: null,
   recorded_date: "2026-08-18",
+  known_fields: null,
+  field_provenance: null,
   created_at: "2026-08-18T08:00:00.000Z",
 };
 
@@ -142,6 +144,33 @@ describe("skin checkins and weather API", () => {
     );
   });
 
+  it("保存 canonical Daily Skin 并返回可由详情页读取的状态", async () => {
+    const dailyState = {
+      version: 2,
+      summary: "今天主要是脸颊粗糙。",
+      concerns: [{ kind: "dryness", status: "present", areas: ["cheeks"], attributes: { baseline_comparison: "new" }, user_wording: ["脸颊摸起来粗糙"], source: ["conversation"] }],
+    };
+    vi.mocked(checkins.upsertByDate).mockResolvedValueOnce({ ...checkinRow, daily_state: dailyState, known_fields: [] });
+
+    const response = await postCheckin(
+      jsonRequest("http://localhost/api/v1/skin-checkins", "POST", { ...validCheckin(), daily_state: dailyState }),
+    );
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).data).toMatchObject({ recorded_date: "2026-08-18", daily_state: dailyState });
+  });
+
+  it("repository 写入失败会明确保留在写入边界", async () => {
+    vi.mocked(checkins.upsertByDate).mockRejectedValueOnce(new Error("SKIN_CHECKIN_WRITE_FAILED"));
+
+    const response = await postCheckin(
+      jsonRequest("http://localhost/api/v1/skin-checkins", "POST", validCheckin()),
+    );
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: { code: "SKIN_CHECKIN_WRITE_FAILED" } });
+  });
+
   it("check-in 列表只查询 session 用户", async () => {
     const response = await getCheckins(
       new Request("http://localhost/api/v1/skin-checkins?limit=7&user_id=user-b"),
@@ -186,7 +215,8 @@ describe("skin checkins and weather API", () => {
 
     expect(readResponse.status).toBe(200);
     expect(writeResponse.status).toBe(200);
-    expect(weather.findLatestByUserId).toHaveBeenCalledWith("user-a");
+    expect(weather.findLatestByUserId).not.toHaveBeenCalled();
+    expect(weather.findByDate).toHaveBeenCalledWith("user-a", expect.any(String));
     expect(weather.upsertByDate).toHaveBeenCalledWith(
       "user-a",
       expect.objectContaining({ source: "open_meteo" }),
@@ -228,6 +258,8 @@ function validCheckin() {
     acne_level: 0,
     notes: null,
     recorded_date: "2026-08-18",
+    known_fields: ["dryness_level", "oiliness_level", "redness_level", "sensitivity_level", "acne_level"],
+    field_provenance: { dryness_level: ["manual"], oiliness_level: ["manual"], redness_level: ["manual"], sensitivity_level: ["manual"], acne_level: ["manual"] },
   };
 }
 
