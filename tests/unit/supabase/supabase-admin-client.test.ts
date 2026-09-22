@@ -34,6 +34,7 @@ describe("Supabase admin client", () => {
       "https://example.supabase.co",
       "service-role-sentinel",
       {
+        realtime: { transport: expect.any(Function) },
         auth: {
           autoRefreshToken: false,
           persistSession: false,

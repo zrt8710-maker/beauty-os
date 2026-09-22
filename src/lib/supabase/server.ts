@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 
 import type { Database } from "@/db/database.types";
 import { getPublicEnv } from "@/env";
+import { serverRealtime } from "@/lib/supabase/server-realtime";
 
 export async function createClient() {
   const env = getPublicEnv();
@@ -14,6 +15,7 @@ export async function createClient() {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
+      realtime: serverRealtime,
       cookies: {
         getAll() {
           return cookieStore.getAll();
