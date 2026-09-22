@@ -2,7 +2,7 @@
   "installCommand": "corepack enable && pnpm install --frozen-lockfile",
   "buildCommand": "pnpm build",
   "outputDirectory": ".next",
-  "nodeVersion": "22.23.2",
+  "nodeVersion": "22.11.0",
   "cloudFunctions": {
     "nodejs": {
       "maxDuration": 120,
