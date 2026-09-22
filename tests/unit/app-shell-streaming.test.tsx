@@ -6,6 +6,7 @@ vi.mock("@/server/auth/get-current-user", () => ({ getCurrentUser: mocks.user })
 vi.mock("@/server/app-shell/app-shell-context", () => ({ getAppShellContext: mocks.weather }));
 vi.mock("@/server/auth/sign-out", () => ({ signOut: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
+vi.mock("next/server", () => ({ connection: vi.fn(async () => {}) }));
 
 import ProtectedAppLayout from "@/app/(app)/layout";
 

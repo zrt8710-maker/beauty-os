@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 
 import { Button } from "@/components/ui/button";
 import { BeautyNavIcon } from "@/components/beauty-nav-icon";
@@ -14,6 +15,7 @@ import { signOut } from "@/server/auth/sign-out";
 export default async function ProtectedAppLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  await connection();
   const user = await getCurrentUser();
 
   if (!user) {
