@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import type { Database } from "@/db/database.types";
 import { getPublicEnv } from "@/env";
-import { serverRealtime } from "@/lib/supabase/server-realtime";
+import { proxyRealtime } from "@/lib/supabase/proxy-realtime";
 
 function copyResponseCookies(source: NextResponse, target: NextResponse): void {
   source.cookies.getAll().forEach((cookie) => {
@@ -25,7 +25,7 @@ export async function updateSession(request: NextRequest) {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
     {
-      realtime: serverRealtime,
+      realtime: proxyRealtime,
       cookies: {
         getAll() {
           return request.cookies.getAll();
