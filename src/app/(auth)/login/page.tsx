@@ -17,11 +17,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     <LoginScene>
       <section className="beauty-login-retreat" aria-labelledby="login-heading">
         <p className="beauty-login-wordmark">
-          <span data-login-depth="6">Beauty OS</span>
+          <span>Beauty OS</span>
         </p>
         <header className="beauty-login-intro">
-          <p className="beauty-login-prelude"><span data-login-depth="2">留一点时间，照顾自己</span></p>
-          <h1 id="login-heading" className="beauty-login-heading"><span data-login-depth="4">欢迎回来</span></h1>
+          <p className="beauty-login-prelude"><span>留一点时间，照顾自己</span></p>
+          <h1 id="login-heading" className="beauty-login-heading"><span>欢迎回来</span></h1>
           <p className="mt-4 text-sm leading-7 text-secondary-foreground">
             从今天的皮肤感受，继续你的护理日常。
           </p>

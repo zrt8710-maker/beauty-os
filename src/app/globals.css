@@ -866,10 +866,6 @@
   .beauty-login-input:focus-visible {
     box-shadow: 0 0 0 4px rgba(211, 200, 229, .22), var(--shadow-button-soft);
   }
-  [data-login-depth] {
-    display: inline-block;
-    transition: transform var(--duration-sheet) var(--ease-out);
-  }
   .beauty-login-canvas:has(.beauty-login-input:focus) .beauty-login-wordmark { color: var(--foreground); }
   .beauty-login-wordmark { transition: color var(--duration-state) ease; }
   .beauty-login-submit { position: relative; }
@@ -1025,7 +1021,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-login-depth] { transform: none !important; transition: none !important; }
   .beauty-login-submit .beauty-login-action-icon { transform: none !important; animation: none !important; }
   .beauty-login-wordmark,
   .beauty-login-intro,
