@@ -32,16 +32,22 @@ describe("Supabase session refresh 与页面保护", () => {
     vi.stubEnv("NEXT_PUBLIC_APP_URL", "http://localhost:3000");
   });
 
-  it.each(["GET", "POST"])("login %s never initializes or refreshes a stale session", async (method) => {
+  it.each([
+    ["/login", "GET"],
+    ["/login", "POST"],
+    ["/auth/verify-otp", "POST"],
+    ["/auth/callback", "GET"],
+  ])("public auth route %s %s skips stale session refresh", async (path, method) => {
     mocks.createServerClient.mockImplementation(() => {
       throw new Error("Login must not wait for Supabase session recovery");
     });
-    const response = await updateSession(new NextRequest("http://localhost:3000/login", {
+    const response = await updateSession(new NextRequest(`http://localhost:3000${path}`, {
       method,
       headers: { cookie: "sb-example-auth-token=stale-session" },
     }));
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
+    expect(response.headers.get("x-middleware-override-headers")).toBeNull();
     expect(response.cookies.getAll()).toEqual([]);
     expect(mocks.createServerClient).not.toHaveBeenCalled();
   });
@@ -93,6 +99,21 @@ describe("Supabase session refresh 与页面保护", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/login?next=%2Fapp%3Ftab%3Dtoday",
     );
+  });
+
+  it("forwards ordinary requests without overriding the Cookie header", async () => {
+    mocks.createServerClient.mockReturnValue({
+      auth: {
+        getClaims: vi.fn().mockResolvedValue({ data: { claims: { sub: "user-a" } }, error: null }),
+      },
+    });
+
+    const response = await updateSession(new NextRequest("http://localhost:3000/profile", {
+      headers: { cookie: "sb-example-auth-token=session" },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-middleware-override-headers")).toBeNull();
   });
 
   it("malformed session never crashes the proxy and is treated as unauthenticated", async () => {

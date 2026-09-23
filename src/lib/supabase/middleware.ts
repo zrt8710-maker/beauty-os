@@ -14,12 +14,14 @@ function copyResponseCookies(source: NextResponse, target: NextResponse): void {
 export async function updateSession(request: NextRequest) {
   // Signing in must remain possible even when an existing session cannot refresh.
   // Protected pages still verify claims through the normal path below.
-  if (request.nextUrl.pathname === "/login") {
-    return NextResponse.next({ request });
+  if (["/login", "/auth/verify-otp", "/auth/callback"].includes(request.nextUrl.pathname)) {
+    return NextResponse.next();
   }
 
   const env = getPublicEnv();
-  let response = NextResponse.next({ request });
+  // Forward the original request untouched. EdgeOne's request-header override
+  // truncates large Cookie headers before the route receives them.
+  let response = NextResponse.next();
 
   const supabase = createServerClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
