@@ -40,7 +40,11 @@ export function LoginForm() {
     try {
       const response = await fetch("/auth/verify-otp", {
         method: "POST",
-        body: new FormData(event.currentTarget),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: sentEmail,
+          token: new FormData(event.currentTarget).get("token"),
+        }),
         credentials: "same-origin",
       });
       const result = (await response.json()) as EmailOtpActionState;
