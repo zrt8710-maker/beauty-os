@@ -4,15 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-
-type LocationCandidate = {
-  displayName: string;
-  region: string | null;
-  country: string | null;
-  latitude: number;
-  longitude: number;
-  timezone: string;
-};
+import { searchCitiesFromBrowser, type LocationCandidate } from "./open-meteo-browser-search";
 
 export function WeatherLocationSettings({
   initialLocationName,
@@ -39,9 +31,10 @@ export function WeatherLocationSettings({
     setCandidates([]);
     try {
       const response = await fetch(`/api/v1/weather/locations?query=${encodeURIComponent(value)}`);
-      const body: unknown = await response.json();
-      const data = readCandidates(body);
-      if (!response.ok || !data) throw new Error();
+      const data = response.status === 502
+        ? await searchCitiesFromBrowser(value)
+        : readCandidates(await response.json());
+      if ((response.status !== 502 && !response.ok) || !data) throw new Error();
       setCandidates(data);
       if (data.length === 0) setMessage("没有找到这个城市，可以换个名称试试。");
     } catch {

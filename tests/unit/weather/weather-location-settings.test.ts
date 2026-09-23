@@ -19,6 +19,8 @@ describe("weather location settings", () => {
     expect(profilePage).not.toContain("WeatherLocationSettings");
     expect(settings).toContain("修改城市");
     expect(settings).toContain("/api/v1/weather/locations?query=");
+    expect(settings).toContain("response.status === 502");
+    expect(settings).toContain("searchCitiesFromBrowser(value)");
     expect(settings).toContain('fetch("/api/v1/weather/location"');
     expect(settings).toContain("router.refresh()");
     expect(settings).toContain("onSaved?.()");
