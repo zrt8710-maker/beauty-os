@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { CarePreferencesForm } from "@/features/profile/care-preferences-form";
 import type { Profile } from "@/schemas/profile";

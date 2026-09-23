@@ -1,9 +1,9 @@
 import { Children, isValidElement, Suspense, type ReactElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), weather: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), weather: vi.fn(), profile: vi.fn() }));
 vi.mock("@/server/auth/get-current-user", () => ({ getCurrentUser: mocks.user }));
-vi.mock("@/server/app-shell/app-shell-context", () => ({ getAppShellContext: mocks.weather }));
+vi.mock("@/server/app-shell/app-shell-context", () => ({ getAppShellContext: mocks.weather, getProfileContext: mocks.profile }));
 vi.mock("@/server/auth/sign-out", () => ({ signOut: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
 vi.mock("next/server", () => ({ connection: vi.fn(async () => {}) }));
@@ -13,7 +13,7 @@ import ProtectedAppLayout from "@/app/(app)/layout";
 function findSuspense(node: ReactNode): ReactElement<{ children: ReactElement; fallback: ReactNode }> | undefined {
   for (const child of Children.toArray(node)) {
     if (!isValidElement<{ children?: ReactNode }>(child)) continue;
-    if (child.type === Suspense) return child as ReactElement<{ children: ReactElement; fallback: ReactNode }>;
+    if (child.type === Suspense && isValidElement(child.props.children) && typeof child.props.children.type === "function" && child.props.children.type.name === "SidebarWeather") return child as ReactElement<{ children: ReactElement; fallback: ReactNode }>;
     const found = findSuspense(child.props.children);
     if (found) return found;
   }
@@ -23,6 +23,7 @@ describe("app shell streaming", () => {
   beforeEach(() => {
     mocks.user.mockReset();
     mocks.weather.mockReset();
+    mocks.profile.mockReset();
   });
 
   it("returns the authenticated shell before weather and preserves the resolved weather values", async () => {

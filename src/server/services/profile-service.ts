@@ -69,6 +69,7 @@ export function toProfile(row: ProfileRow): Profile {
 function toProfileUpdate(
   input: ProfileInput,
   onboardingCompletedAt: string,
+  carePreferencesSavedAt: string | null,
 ): ProfileUpdate {
   const now = new Date().toISOString();
 
@@ -81,6 +82,7 @@ function toProfileUpdate(
     max_pm_steps: input.preferred_routine_length.pm_steps,
     preferences: {
       texture_preferences: input.texture_preferences,
+      ...(carePreferencesSavedAt ? { care_preferences_saved_at: carePreferencesSavedAt } : {}),
     },
     avoid_ingredients: input.avoid_ingredients,
     timezone: input.timezone,
@@ -94,7 +96,7 @@ function toProfileUpdate(
 
 export type ProfileService = {
   getProfile(userId: string): Promise<Profile>;
-  updateProfile(userId: string, input: unknown): Promise<Profile>;
+  updateProfile(userId: string, input: unknown, options?: { markCarePreferencesSaved?: boolean }): Promise<Profile>;
 };
 
 export function createProfileService(
@@ -107,14 +109,21 @@ export function createProfileService(
       return toProfile(row);
     },
 
-    async updateProfile(userId, input) {
+    async updateProfile(userId, input, options) {
       const validated = profileInputSchema.parse(input);
       const existing = await repository.findByUserId(userId);
       const onboardingCompletedAt =
         existing?.onboarding_completed_at ?? new Date().toISOString();
+      const storedPreferences = existing?.preferences;
+      const savedAt = storedPreferences && typeof storedPreferences === "object" && !Array.isArray(storedPreferences)
+        ? storedPreferences.care_preferences_saved_at
+        : null;
+      const carePreferencesSavedAt = options?.markCarePreferencesSaved
+        ? new Date().toISOString()
+        : typeof savedAt === "string" ? savedAt : null;
       const row = await repository.upsertByUserId(
         userId,
-        toProfileUpdate(validated, onboardingCompletedAt),
+        toProfileUpdate(validated, onboardingCompletedAt, carePreferencesSavedAt),
       );
       return toProfile(row);
     },

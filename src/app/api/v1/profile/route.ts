@@ -76,7 +76,9 @@ export async function PUT(request: Request) {
   }
 
   try {
-    const profile = await context.service.updateProfile(context.user.id, input);
+    const profile = await context.service.updateProfile(context.user.id, input, {
+      markCarePreferencesSaved: new URL(request.url).searchParams.get("section") === "care-preferences",
+    });
     return NextResponse.json(
       { data: profile },
       { headers: noStoreHeaders },

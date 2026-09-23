@@ -156,7 +156,7 @@ function RoutineSteps({ busy, onGenerate, onForceGenerate, period, steps }: { bu
           <Button disabled={busy} onClick={onForceGenerate} type="button" variant="ghost">完整重新生成</Button>
         </div>
       </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">检查后仍适合今天，就继续沿用；完整重新生成需要等待更久。</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">检查并更新：先核对今天的状态，仍适合就沿用现有方案。完整重新生成：跳过沿用，重新生成一版，通常更慢；结果不一定不同。</p>
       {steps.length ? <ol className="beauty-routine-trail mt-6">{steps.map((step) => (
         <li className="beauty-routine-step grid grid-cols-[32px_minmax(0,1fr)] gap-3 sm:gap-5" key={step.id}>
           <span className="flex size-8 items-center justify-center rounded-full border border-selected-border bg-selected text-sm font-semibold text-selected-foreground">{step.order}</span>

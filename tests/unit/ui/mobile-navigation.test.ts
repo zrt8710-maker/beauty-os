@@ -12,7 +12,7 @@ describe("protected layout mobile navigation", () => {
 
     expect(source).toContain("hidden h-svh flex-col border-r bg-sidebar lg:flex");
     expect(source).toContain('className="border-b border-sidebar-border bg-sidebar lg:hidden"');
-    expect(source).toContain("<PrimaryNavigation mobile />");
+    expect(source).toContain("<SetupNavigation mobile userId={user.id} />");
     expect(source).toContain('pb-[calc(4.5rem+env(safe-area-inset-bottom))]');
     expect(source).toContain(">退出</Button>");
     expect(source).not.toContain(">导航</summary>");

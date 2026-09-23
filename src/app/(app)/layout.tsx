@@ -8,7 +8,8 @@ import { BeautyNavIcon } from "@/components/beauty-nav-icon";
 import { MobileAppHeader } from "@/components/mobile-app-header";
 import { PrimaryNavigation } from "@/components/primary-navigation";
 import { SidebarEnvironmentEntry } from "@/features/weather/sidebar-environment-entry";
-import { getAppShellContext } from "@/server/app-shell/app-shell-context";
+import { getSetupStatus } from "@/features/profile/setup-status";
+import { getAppShellContext, getProfileContext } from "@/server/app-shell/app-shell-context";
 import { getCurrentUser } from "@/server/auth/get-current-user";
 import { signOut } from "@/server/auth/sign-out";
 
@@ -29,7 +30,7 @@ export default async function ProtectedAppLayout({
           <p className="font-semibold tracking-tight">Beauty OS</p>
           <p className="mt-1 truncate text-xs text-muted-foreground">{user.email ?? "已登录"}</p>
         </div>
-        <PrimaryNavigation />
+        <Suspense fallback={<PrimaryNavigation />}><SetupNavigation userId={user.id} /></Suspense>
         <div className="mt-auto">
           {user.appRole === "admin" ? (
             <div className="px-5 py-3">
@@ -64,9 +65,18 @@ export default async function ProtectedAppLayout({
         </header>
         {children}
       </div>
-      <PrimaryNavigation mobile />
+      <Suspense fallback={<PrimaryNavigation mobile />}><SetupNavigation mobile userId={user.id} /></Suspense>
     </div>
   );
+}
+
+async function SetupNavigation({ mobile = false, userId }: { mobile?: boolean; userId: string }) {
+  try {
+    const { profileRow } = await getProfileContext(userId);
+    return <PrimaryNavigation mobile={mobile} setup={getSetupStatus(profileRow)} />;
+  } catch {
+    return <PrimaryNavigation mobile={mobile} />;
+  }
 }
 
 // Weather retains its full refresh behavior, but cannot hold up the app shell.

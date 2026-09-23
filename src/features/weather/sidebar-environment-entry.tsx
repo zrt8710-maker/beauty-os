@@ -39,6 +39,7 @@ export function SidebarEnvironmentEntry({
         <span className="flex items-center gap-2 font-medium text-foreground">
           <BeautyNavIcon name="weather" size={16} />
           {locationLabel ?? "所在城市"}
+          {!locationLabel ? <span aria-label="待设置城市" className="inline-flex size-4 items-center justify-center rounded-full bg-warning/15 text-[11px] font-bold text-warning">!</span> : null}
           {temperature === null ? "" : ` · ${temperature}°C`}
         </span>
         <span className="mt-1 block">{details}</span>

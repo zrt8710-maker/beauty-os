@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { BeautyNavIcon } from "@/components/beauty-nav-icon";
@@ -37,6 +38,7 @@ function splitAvoidIngredients(value: string): string[] {
 }
 
 export function ProfileForm({ initialProfile, suggestionIntent = null }: ProfileFormProps) {
+  const router = useRouter();
   const suggestedDraft = applyProfileSuggestionIntent(initialProfile, suggestionIntent);
   const [profile, setProfile] = useState(initialProfile);
   const [draft, setDraft] = useState(suggestedDraft);
@@ -125,6 +127,7 @@ export function ProfileForm({ initialProfile, suggestionIntent = null }: Profile
       setStatus("success");
       setMessage("长期皮肤档案已保存。");
       setMode("view");
+      router.refresh();
     } catch {
       setStatus("error");
       setMessage("网络连接失败，请稍后重试。");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { BeautyNavIcon } from "@/components/beauty-nav-icon";
@@ -15,6 +16,7 @@ import {
 type SaveStatus = "idle" | "saving" | "success" | "error";
 
 export function CarePreferencesForm({ initialProfile }: { initialProfile: Profile }) {
+  const router = useRouter();
   const [profile, setProfile] = useState(initialProfile);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState("");
@@ -54,7 +56,7 @@ export function CarePreferencesForm({ initialProfile }: { initialProfile: Profil
     };
 
     try {
-      const response = await fetch("/api/v1/profile", {
+      const response = await fetch("/api/v1/profile?section=care-preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -69,6 +71,7 @@ export function CarePreferencesForm({ initialProfile }: { initialProfile: Profil
       setProfile(saved);
       setStatus("success");
       setMessage("护理偏好已保存。");
+      router.refresh();
     } catch {
       setStatus("error");
       setMessage("网络连接失败，请稍后重试。");

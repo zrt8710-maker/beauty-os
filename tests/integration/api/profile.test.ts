@@ -118,6 +118,25 @@ describe("GET/PUT /api/v1/profile", () => {
     );
   });
 
+  it("保存护理偏好时记录完成标记，普通档案保存仍保留该标记", async () => {
+    const preferenceRequest = new Request("http://localhost/api/v1/profile?section=care-preferences", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(validInput),
+    });
+    expect((await PUT(preferenceRequest)).status).toBe(200);
+    const preferenceUpdate = vi.mocked(repository.upsertByUserId).mock.calls.at(-1)?.[1];
+    expect(preferenceUpdate?.preferences).toEqual(expect.objectContaining({ care_preferences_saved_at: expect.any(String) }));
+
+    vi.mocked(repository.findByUserId).mockResolvedValue({
+      ...baseRow,
+      preferences: { texture_preferences: [], care_preferences_saved_at: "2026-09-24T00:00:00Z" },
+    } as never);
+    expect((await PUT(new Request("http://localhost/api/v1/profile", {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(validInput),
+    }))).status).toBe(200);
+    const profileUpdate = vi.mocked(repository.upsertByUserId).mock.calls.at(-1)?.[1];
+    expect(profileUpdate?.preferences).toEqual(expect.objectContaining({ care_preferences_saved_at: "2026-09-24T00:00:00Z" }));
+  });
+
   it("用户不能通过 API 指定并读取其他用户 profile", async () => {
     const response = await GET();
 

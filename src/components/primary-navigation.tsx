@@ -4,10 +4,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { BeautyNavIcon, type BeautyNavIconName } from "@/components/beauty-nav-icon";
+import type { SetupStatus } from "@/features/profile/setup-status";
 import { cn } from "@/lib/utils";
 
-export function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
+export function PrimaryNavigation({ mobile = false, setup }: { mobile?: boolean; setup?: SetupStatus }) {
   const pathname = usePathname();
+  const setupIncomplete = setup && (!setup.profile || !setup.city || !setup.preferences);
   if (mobile) {
     const items = [
       { href: "/app", label: "首页", icon: "home" as const, active: pathname === "/app" },
@@ -21,7 +23,7 @@ export function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
         {items.map((item) => (
           <Link aria-current={item.active ? "page" : undefined} className={cn("beauty-nav-item flex min-h-16 touch-manipulation flex-col items-center justify-center gap-1 border-t-2 px-1 text-[11px] font-medium", item.active ? "border-selected-border bg-selected/70 text-selected-foreground" : "border-transparent text-muted-foreground")} href={item.href} key={item.href}>
             <BeautyNavIcon active={item.active} name={item.icon} size={20} />
-            <span>{item.label}</span>
+            <span className="flex items-center gap-1">{item.label}{item.href === "/profile" && setupIncomplete ? <SetupMark /> : null}</span>
           </Link>
         ))}
       </nav>
@@ -50,14 +52,19 @@ export function PrimaryNavigation({ mobile = false }: { mobile?: boolean }) {
       <NavLink active={pathname === "/inventory"} href="/inventory" icon="inventory" label="我的资产" linkClass={linkClass} />
       <div className="mt-3 border-t pt-3">
         <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">皮肤</p>
-        <NavLink active={pathname === "/profile"} href="/profile" icon="profile" label="长期档案" linkClass={linkClass} />
+        <NavLink active={pathname === "/profile"} href="/profile" icon="profile" label="长期档案" linkClass={linkClass} needsSetup={setup ? !setup.profile : false} />
         <NavLink active={pathname === "/check-in"} href="/check-in" icon="daily-skin" label="今日状态" linkClass={linkClass} />
-        <NavLink active={pathname === "/preferences"} href="/preferences" icon="care-preferences" label="护理偏好" linkClass={linkClass} />
+        <NavLink active={pathname === "/preferences"} href="/preferences" icon="care-preferences" label="护理偏好" linkClass={linkClass} needsSetup={setup ? setup.profile && !setup.preferences : false} />
+        {setupIncomplete ? <Link className="mt-2 block rounded-xl bg-selected/60 px-3 py-2 text-xs leading-5 text-selected-foreground hover:bg-selected" href="/profile">还有个人设置待完善，完成后提醒会消失。</Link> : null}
       </div>
     </nav>
   );
 }
 
-function NavLink({ active, href, icon, label, linkClass }: { active: boolean; href: string; icon: BeautyNavIconName; label: string; linkClass: (active: boolean, nested?: boolean) => string }) {
-  return <Link aria-current={active ? "page" : undefined} className={linkClass(active)} href={href}><BeautyNavIcon active={active} name={icon} size={20} /><span>{label}</span></Link>;
+function NavLink({ active, href, icon, label, linkClass, needsSetup = false }: { active: boolean; href: string; icon: BeautyNavIconName; label: string; linkClass: (active: boolean, nested?: boolean) => string; needsSetup?: boolean }) {
+  return <Link aria-current={active ? "page" : undefined} className={linkClass(active)} href={href}><BeautyNavIcon active={active} name={icon} size={20} /><span>{label}</span>{needsSetup ? <SetupMark /> : null}</Link>;
+}
+
+function SetupMark() {
+  return <span aria-label="待完善" className="inline-flex size-4 items-center justify-center rounded-full bg-warning/15 text-[11px] font-bold text-warning">!</span>;
 }
