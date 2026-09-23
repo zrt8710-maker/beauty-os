@@ -5,7 +5,9 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 export async function proxy(request: NextRequest) {
   if (request.nextUrl.pathname === "/auth/proxy-bypass-check") {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    response.headers.set("X-Proxy-Probe", "next-without-request-override");
+    return response;
   }
   return updateSession(request);
 }
