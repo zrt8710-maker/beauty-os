@@ -523,19 +523,35 @@ export function InventoryManager({
         }),
       });
       const result: unknown = await response.json();
+      if (!response.ok) {
+        const code = readApiErrorCode(result);
+        throw new Error(code === "IDENTITY_CONFIRMATION_INVALID"
+          ? "IDENTITY_CONFIRMATION_INVALID"
+          : `SAVE_FAILED_${code ?? response.status}`);
+      }
       const ownedProduct = parseData(result, ownedProductSchema);
-
-      if (!response.ok || !ownedProduct) {
-        throw new Error("OWNED_PRODUCT_CREATE_FAILED");
+      if (!ownedProduct) {
+        throw new Error("SAVE_RESPONSE_INVALID");
       }
 
       setInventory((current) => [ownedProduct, ...current]);
       resetAddFlow();
       setSelectedOwnedProduct(ownedProduct);
       setMessage("已添加到我的产品");
-    } catch {
+    } catch (error) {
       setHasError(true);
-      setMessage("添加失败，产品与库存均未保存，请检查后重试。");
+      if (error instanceof Error && error.message === "IDENTITY_CONFIRMATION_INVALID") {
+        setPendingAssetResolution(null);
+        setAddFlowStage("lookup");
+        setMessage("产品确认已失效，请重新搜索并确认后再保存。");
+      } else if (error instanceof Error && error.message === "SAVE_RESPONSE_INVALID") {
+        setMessage("服务器已接受保存，但页面未能读取结果；请刷新资产列表确认，避免重复添加。");
+      } else {
+        const code = error instanceof Error && error.message.startsWith("SAVE_FAILED_")
+          ? error.message.slice("SAVE_FAILED_".length)
+          : null;
+        setMessage(`添加失败，请刷新页面确认是否已保存后重试。${code ? `错误代码：${code}` : ""}`);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -1821,6 +1837,15 @@ function parseData<T>(
 
   const result = schema.safeParse(value.data);
   return result.success && result.data ? result.data : null;
+}
+
+function readApiErrorCode(value: unknown): string | null {
+  if (typeof value !== "object" || value === null || !("error" in value)) return null;
+  const error = value.error;
+  if (typeof error !== "object" || error === null || !("code" in error)) return null;
+  return typeof error.code === "string" && /^[A-Z0-9_]{1,80}$/.test(error.code)
+    ? error.code
+    : null;
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {

@@ -2,6 +2,8 @@ import { after, NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { SupabaseAdminConfigurationError } from "@/server/config/supabase-admin-env";
+import { InvalidRecognitionConfirmationTokenError } from "@/server/product-recognition/recognition-confirmation-token";
 import { createOwnedProductWithIdentitySchema } from "@/schemas/product-identity";
 import { getCurrentUser } from "@/server/auth/get-current-user";
 import { createKnowledgeRepository } from "@/server/repositories/knowledge-repository";
@@ -100,6 +102,11 @@ export async function POST(request: Request) {
       { status: 201, headers },
     );
   } catch (error) {
+    if (error instanceof InvalidRecognitionConfirmationTokenError) {
+      ownedProductCreateTimingDebug("failed", timings, startedAt);
+      return errorResponse(409, "IDENTITY_CONFIRMATION_INVALID", "产品确认已失效，请重新查找并确认产品。");
+    }
+
     if (error instanceof ZodError) {
       ownedProductCreateInvalidDebug(error.issues, input);
       ownedProductCreateTimingDebug("invalid", timings, startedAt);
@@ -151,6 +158,25 @@ export async function POST(request: Request) {
     }
 
     ownedProductCreateTimingDebug("failed", timings, startedAt);
-    return errorResponse(500, "OWNED_PRODUCT_CREATE_FAILED", "无法添加库存。");
+    if (error instanceof SupabaseAdminConfigurationError) {
+      return errorResponse(500, error.code, "资产服务配置异常，请稍后重试。");
+    }
+    if (error instanceof OwnedProductIdentityRepositoryError) {
+      const postgresCode = error.postgres.code;
+      return errorResponse(
+        500,
+        postgresCode && /^(?:[A-Z0-9]{5}|PGRST[0-9]{3})$/.test(postgresCode)
+          ? `OWNED_PRODUCT_RPC_${postgresCode}`
+          : "OWNED_PRODUCT_RPC_FAILED",
+        "资产保存失败，请刷新页面确认后重试。",
+      );
+    }
+    if (error instanceof Error && error.message === "CONFIRMED_CATALOG_CANDIDATE_READ_FAILED") {
+      return errorResponse(500, "CATALOG_CANDIDATE_READ_FAILED", "产品目录读取失败，请稍后重试。");
+    }
+    if (error instanceof Error && error.message === "CONFIRMED_CATALOG_CANDIDATE_WRITE_FAILED") {
+      return errorResponse(500, "CATALOG_CANDIDATE_WRITE_FAILED", "产品目录保存失败，请稍后重试。");
+    }
+    return errorResponse(500, "OWNED_PRODUCT_CREATE_FAILED", "资产保存失败，请刷新页面确认后重试。");
   }
 }
