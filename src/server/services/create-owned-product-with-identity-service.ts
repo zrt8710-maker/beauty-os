@@ -138,9 +138,9 @@ export function createOwnedProductWithIdentityService(
         catalog_product_id: catalogProductId,
         subcategory: PRODUCT_TYPE_META[validated.product_type].subcategory,
       });
-      if (catalogProductId && validated.resolution_kind !== "unknown" && onCatalogIdentityConfirmed) {
-        // Fire-and-forget is intentional: product creation is authoritative;
-        // Agent3 is a best-effort provisional research follow-up.
+      if (catalogProductId && validated.resolution_kind === "external" && onCatalogIdentityConfirmed) {
+        // Existing Catalog products need only a private asset link. Research is
+        // reserved for identities discovered outside the Catalog.
         const metadata = discoveryMetadata;
         try {
           onCatalogIdentityConfirmed({

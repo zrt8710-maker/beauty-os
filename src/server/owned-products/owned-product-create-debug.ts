@@ -62,7 +62,7 @@ export function ownedProductCreateDebug(event: OwnedProductCreateDebugEvent) {
 }
 
 export type OwnedProductCreateTimingEvent = {
-  stage: "catalog_backstop" | "external_catalog_binding" | "asset_rpc" | "fallback_hydration" | "research_trigger_registered";
+  stage: "catalog_backstop" | "external_catalog_binding" | "asset_rpc" | "fallback_hydration";
   elapsed_ms: number;
 };
 

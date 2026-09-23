@@ -143,12 +143,34 @@ describe("CreateOwnedProductWithIdentity", () => {
     });
   });
 
-  it("schedules Catalog research after the asset write without awaiting it", async () => {
+  it("does not schedule research when linking an existing Catalog product", async () => {
+    const { matcher, repository, confirmedCatalogCandidates } = setup();
+    const schedule = vi.fn();
+    const service = createOwnedProductWithIdentityService(matcher, repository, confirmedCatalogCandidates, schedule);
+
+    await expect(service.create("user-a", input())).resolves.toMatchObject({ id: ownedProductId });
+    expect(repository.create).toHaveBeenCalledTimes(1);
+    expect(schedule).not.toHaveBeenCalled();
+  });
+
+  it("schedules research for an externally discovered identity after the asset write", async () => {
     const { matcher, repository, confirmedCatalogCandidates } = setup();
     const schedule = vi.fn(() => { throw new Error("background unavailable"); });
     const service = createOwnedProductWithIdentityService(matcher, repository, confirmedCatalogCandidates, schedule);
 
-    await expect(service.create("user-a", input())).resolves.toMatchObject({ id: ownedProductId });
+    const confirmation = issueRecognitionConfirmationToken("user-a", {
+      brand_name: "CeraVe",
+      product_name: "Daily-SPF",
+      variant_name: "50 ml",
+      barcode: null,
+      product_type: "serum",
+      discovery_metadata: { aliases: [], confidence: 80, sources: [], uncertainties: [] },
+    });
+    await expect(service.create("user-a", {
+      ...input("external"),
+      confirmation_token: confirmation.confirmation_token,
+      idempotency_key: confirmation.confirmation_id,
+    })).resolves.toMatchObject({ id: ownedProductId });
     expect(schedule).toHaveBeenCalledWith(expect.objectContaining({
       catalog_product_id: catalogId,
       brand_name: "CeraVe",

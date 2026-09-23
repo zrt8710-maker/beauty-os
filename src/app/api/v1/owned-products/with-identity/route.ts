@@ -1,4 +1,4 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -6,7 +6,6 @@ import { SupabaseAdminConfigurationError } from "@/server/config/supabase-admin-
 import { InvalidRecognitionConfirmationTokenError } from "@/server/product-recognition/recognition-confirmation-token";
 import { createOwnedProductWithIdentitySchema } from "@/schemas/product-identity";
 import { getCurrentUser } from "@/server/auth/get-current-user";
-import { createKnowledgeRepository } from "@/server/repositories/knowledge-repository";
 import { createCatalogIdentityRepository } from "@/server/repositories/catalog-identity-repository";
 import { createOwnedProductIdentityRepository } from "@/server/repositories/owned-product-identity-repository";
 import {
@@ -14,9 +13,6 @@ import {
   CatalogVariantConfirmationRequiredError,
   createConfirmedCatalogCandidateRepository,
 } from "@/server/repositories/confirmed-catalog-candidate-repository";
-import { createProductResearchDraftRepository } from "@/server/repositories/product-research-draft-repository";
-import { createConfiguredVolcengineAgentPlanProductResearchProvider } from "@/server/product-research/volcengine-agent-plan-provider";
-import { createConfiguredVolcengineSearchInfinityProvider } from "@/server/product-search/volcengine-search-infinity-provider";
 import {
   OwnedProductIdentityRepositoryError,
   ownedProductCreateDebug,
@@ -29,7 +25,6 @@ import {
   createOwnedProductWithIdentityService,
 } from "@/server/services/create-owned-product-with-identity-service";
 import { createProductIdentityMatcher } from "@/server/services/product-identity-matching-service";
-import { createProductResearchTriggerService } from "@/server/services/product-research-trigger-service";
 
 const headers = { "Cache-Control": "private, no-store" };
 
@@ -76,23 +71,13 @@ export async function POST(request: Request) {
       idempotency_key_present: Boolean(validatedInput.idempotency_key),
     };
     const supabase = createAdminClient();
-    const researchTrigger = createProductResearchTriggerService({
-      provider: createConfiguredVolcengineAgentPlanProductResearchProvider(),
-      drafts: createProductResearchDraftRepository(supabase),
-      knowledge: createKnowledgeRepository(supabase),
-      model: process.env.VOLCENGINE_AGENT_PLAN_MODEL?.trim() ?? null,
-      searchProvider: createConfiguredVolcengineSearchInfinityProvider(),
-    });
     const service = createOwnedProductWithIdentityService(
       createProductIdentityMatcher(createCatalogIdentityRepository(supabase)),
       createOwnedProductIdentityRepository(supabase, (event) => timings.push(event)),
       createConfirmedCatalogCandidateRepository(supabase),
-      (researchInput) => {
-        after(async () => {
-          await researchTrigger.trigger(researchInput);
-        });
-        timings.push({ stage: "research_trigger_registered", elapsed_ms: 0 });
-      },
+      // Research must run in an independent job. EdgeOne waits for Next `after`
+      // work and times out the otherwise successful asset response at 120s.
+      undefined,
       (event) => timings.push(event),
     );
     const ownedProduct = await service.create(user.id, validatedInput);
