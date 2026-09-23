@@ -1,19 +1,18 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { EmailOtpActionState } from "@/server/auth/email-otp";
 
-import { sendEmailOtp, verifyEmailOtp } from "./actions";
+import { sendEmailOtp } from "./actions";
 
 const initialState: EmailOtpActionState = { status: "idle" };
 
 export function LoginForm() {
-  const router = useRouter();
   const [sendState, sendAction, sending] = useActionState(sendEmailOtp, initialState);
-  const [verifyState, verifyAction, verifying] = useActionState(verifyEmailOtp, initialState);
+  const [verifyState, setVerifyState] = useState<EmailOtpActionState>(initialState);
+  const [verifying, setVerifying] = useState(false);
   const [email, setEmail] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [inputError, setInputError] = useState("");
@@ -32,11 +31,30 @@ export function LoginForm() {
     return () => window.clearInterval(timer);
   }, [sendState.cooldownUntil]);
 
-  useEffect(() => {
-    if (!verifyState.redirectTo) return;
-    router.replace(verifyState.redirectTo);
-    router.refresh();
-  }, [router, verifyState.redirectTo]);
+  async function handleVerify(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (verifying) return;
+
+    setVerifying(true);
+    setVerifyState(initialState);
+    try {
+      const response = await fetch("/auth/verify-otp", {
+        method: "POST",
+        body: new FormData(event.currentTarget),
+        credentials: "same-origin",
+      });
+      const result = (await response.json()) as EmailOtpActionState;
+      if (result.status === "success" && result.redirectTo) {
+        window.location.replace(result.redirectTo);
+        return;
+      }
+      setVerifyState(result);
+    } catch {
+      setVerifyState({ status: "error", message: "网络连接失败，请稍后重试。" });
+    } finally {
+      setVerifying(false);
+    }
+  }
 
   return (
     <div className="beauty-login-form space-y-5" data-sent={sent}>
@@ -91,7 +109,7 @@ export function LoginForm() {
       </form>
 
       {sent ? (
-        <form action={verifyAction} className="space-y-5" aria-busy={verifying}>
+        <form onSubmit={handleVerify} className="space-y-5" aria-busy={verifying}>
           <input name="email" type="hidden" value={sentEmail} />
           <div>
             <label className="sr-only" htmlFor="token">验证码</label>
