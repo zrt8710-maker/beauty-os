@@ -26,6 +26,10 @@ describe("Volcengine Skin Conversation provider", () => {
     const context = JSON.parse(body.input[0].content[0].text);
     expect(body).not.toHaveProperty("text");
     expect(body.instructions).toContain("只输出要对用户说的话");
+    expect(body.instructions).toContain("出油的位置");
+    expect(body.instructions).toContain("不是必须依次询问的清单");
+    expect(body.instructions).toContain("先弄清当下情况，再决定是否提供建议");
+    expect(body.instructions).not.toContain("不要为了填满字段而询问部位、程度或持续时间");
     expect(context.active_turn_context).toHaveLength(2);
     expect(context).not.toHaveProperty("conversation_priority");
     expect(deltas.join("")).toBe(reply);

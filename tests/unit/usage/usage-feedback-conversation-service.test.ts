@@ -4,7 +4,6 @@ import { mapUsageFeedbackMessage } from "@/server/services/usage-feedback-conver
 
 const milk = "10000000-0000-4000-8000-000000000001";
 const spot = "10000000-0000-4000-8000-000000000002";
-const sprayOutsideRoutine = "10000000-0000-4000-8000-000000000003";
 
 describe("usage feedback conversation deterministic mapper", () => {
   it("keeps a mildly acceptable texture issue and maps corrections as amendments", () => {

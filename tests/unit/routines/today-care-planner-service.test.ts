@@ -109,9 +109,9 @@ describe("Today Care Planner purpose validator", () => {
   });
 
   it.each([
-    ["cleanser", "cleansing", "cleanser", "cleansing"],
-    ["moisturizer", "basic_moisturization", "moisturizer", "basic_moisturization"],
-  ] as const)("accepts a type-backed baseline %s without upgrading it to product evidence", (productType, purpose, role, baselinePurpose) => {
+    ["cleanser", "cleansing", "cleansing"],
+    ["moisturizer", "basic_moisturization", "basic_moisturization"],
+  ] as const)("accepts a type-backed baseline %s without upgrading it to product evidence", (productType, purpose, baselinePurpose) => {
     const lowKnowledgeCandidate: CarePlannerInput["eligibleProducts"][number] = {
       ...candidates[0],
       productType,

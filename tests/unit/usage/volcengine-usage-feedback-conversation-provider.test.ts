@@ -19,6 +19,13 @@ describe("Volcengine usage-feedback conversation provider", () => {
     expect(request.instructions).toContain("REPLY STYLE — applies only to reply:");
     expect(request.instructions).toContain("FACT EXTRACTION RULES — applies only to draft:");
     expect(request.instructions).toContain("The presence of a draft must NOT change the conversational style of reply.");
+    expect(request.instructions).toContain("follow their conversational direction");
+    expect(request.instructions).toContain("rather than following a fixed questionnaire");
+    expect(request.instructions).toContain("The JSON envelope is internal transport; the user sees only reply.");
+    expect(request.instructions).toContain("只问一个开放、好回答的问题");
+    expect(request.instructions).toContain("do not ask them to confirm a subtype you invented");
+    expect(request.instructions).toContain("对话示范仅说明如何接住用户的话，不是固定问法");
+    expect(request.instructions).not.toContain("Ask one brief, natural clarification only if product reference is unresolved");
     expect(request.instructions).not.toContain("reply naturally that the feedback has been noted");
     expect(request.instructions).toContain("too_sticky together with positive_mild");
     expect(request.instructions).toContain("routine_role_preferences");
