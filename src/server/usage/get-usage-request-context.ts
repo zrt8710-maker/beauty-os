@@ -16,7 +16,7 @@ export async function getUsageRequestContext() {
   return {
     user,
     routines,
-    memory: createConfiguredPersonalMemoryService(),
+    memory: createConfiguredPersonalMemoryService({ supabase, userId: user.id }),
     service: createUsageService(
       createUsageRepository(supabase),
       routines,

@@ -2,6 +2,7 @@ import { after, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getCurrentUser } from "@/server/auth/get-current-user";
+import { createClient } from "@/lib/supabase/server";
 import { createConfiguredPersonalMemoryService } from "@/server/services/personal-memory-service";
 
 const requestSchema = z.object({
@@ -10,13 +11,16 @@ const requestSchema = z.object({
 
 /** A best-effort archive of an already-persisted Daily Skin conversation. */
 export async function POST(request: Request) {
-  if (!await getCurrentUser()) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: { code: "UNAUTHORIZED" } }, { status: 401 });
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: { code: "VALIDATION_ERROR" } }, { status: 400 });
+  const supabase = await createClient();
+  const memory = createConfiguredPersonalMemoryService({ supabase, userId: user.id });
   after(async () => {
     const startedAt = performance.now();
     try {
-      await createConfiguredPersonalMemoryService().commitDailySkinTranscript(parsed.data.transcript);
+      await memory.commitDailySkinTranscript(parsed.data.transcript);
     } catch (error) {
       console.error("[openviking-memory]", {
         stage: "daily_skin_transcript_background_failed",

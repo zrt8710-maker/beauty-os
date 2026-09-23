@@ -794,6 +794,33 @@ export type Database = {
           },
         ]
       }
+      personal_memories: {
+        Row: {
+          id: string
+          user_id: string
+          source: string
+          fingerprint: string
+          content: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          source: string
+          fingerprint: string
+          content: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          source?: string
+          fingerprint?: string
+          content?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       routines: {
         Row: {
           created_at: string

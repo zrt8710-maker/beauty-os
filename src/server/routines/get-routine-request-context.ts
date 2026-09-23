@@ -66,7 +66,7 @@ export async function getRoutineRequestContext() {
       }),
       carePlanner: createCarePlannerService(createConfiguredTodayCarePlannerProvider()),
       careNarrative: createTodayUserNarrativeService(createConfiguredTodayUserNarrativeProvider()),
-      personalMemory: createConfiguredPersonalMemoryService(),
+      personalMemory: createConfiguredPersonalMemoryService({ supabase, userId: user.id }),
       ownedProducts: createOwnedProductRepository(supabase),
       routines,
       usage: createUsageService(createUsageRepository(supabase), routines),

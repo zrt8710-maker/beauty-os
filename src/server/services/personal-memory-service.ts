@@ -1,7 +1,10 @@
 import "server-only";
 
 import type { UsageHistory } from "@/schemas/usage";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/db/database.types";
 import { createConfiguredOpenVikingClient, type OpenVikingClient } from "@/server/openviking/openviking-client";
+import { createSupabasePersonalMemoryService } from "@/server/services/supabase-personal-memory-service";
 
 const MAX_MEMORY_CONTEXT = 5;
 
@@ -13,7 +16,8 @@ export type PersonalMemoryService = {
   commitFeedback(input: { history: UsageHistory; productNames: Map<string, string> }): Promise<void>;
 };
 
-export function createConfiguredPersonalMemoryService(): PersonalMemoryService {
+export function createConfiguredPersonalMemoryService(context?: { supabase: SupabaseClient<Database>; userId: string }): PersonalMemoryService {
+  if (context) return createSupabasePersonalMemoryService(context.supabase, context.userId);
   return createPersonalMemoryService(createConfiguredOpenVikingClient());
 }
 

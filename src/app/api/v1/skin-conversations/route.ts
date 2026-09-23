@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     const profileStartedAt = performance.now();
     const profilePromise = measure(createProfileRepository(supabase).findByUserId(auth.user.id), profileStartedAt);
     const memoryStartedAt = performance.now();
-    const memory = createConfiguredPersonalMemoryService();
+    const memory = createConfiguredPersonalMemoryService({ supabase, userId: auth.user.id });
     const personalMemoryPromise = measure(memory.retrieveDailySkin({
       message: typeof body.message === "string" ? body.message : "",
       activeTurnContext: Array.isArray((body as { active_turn_context?: unknown }).active_turn_context)
