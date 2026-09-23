@@ -64,6 +64,6 @@ describe("Inventory image presentation", () => {
   it("allows a new image URL to render after the previous URL failed", () => {
     expect(source).toContain("const [failedSrc, setFailedSrc]");
     expect(source).toContain("failedSrc === src");
-    expect(source).toContain("setFailedSrc(src)");
+    expect(source).toContain("setFailedSrc(displayedSrc)");
   });
 });

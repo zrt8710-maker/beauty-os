@@ -1127,7 +1127,7 @@ function InventoryCard({
       />
       <div className="pointer-events-none grid w-full grid-cols-[68px_minmax(0,1fr)_auto] items-center gap-3 p-3 text-left sm:flex sm:h-full sm:flex-col sm:items-stretch sm:gap-0 sm:p-4">
         <div className="flex size-[68px] shrink-0 items-center justify-center overflow-hidden rounded-lg bg-lavender-soft/65 sm:hidden">
-          <ProductImage alt={`${ownedProduct.product.product_name} 产品图片`} className="h-full w-full object-contain p-1.5" src={image.resolved_url} />
+          <ProductImage alt={`${ownedProduct.product.product_name} 产品图片`} catalogProductId={image.source === "catalog" ? ownedProduct.product.catalog_product_id : null} className="h-full w-full object-contain p-1.5" src={image.resolved_url} />
         </div>
         <div className="min-w-0 sm:hidden">
           {!hideBrandOnMobile ? (
@@ -1164,7 +1164,7 @@ function InventoryCard({
 
         <div className="hidden gap-4 sm:flex sm:flex-col">
           <div className="beauty-product-stage flex h-36 w-full shrink-0 items-center justify-center overflow-hidden rounded-xl lg:h-40">
-            <ProductImage alt={`${ownedProduct.product.product_name} 产品图片`} className="h-full w-full object-contain p-4" src={image.resolved_url} />
+            <ProductImage alt={`${ownedProduct.product.product_name} 产品图片`} catalogProductId={image.source === "catalog" ? ownedProduct.product.catalog_product_id : null} className="h-full w-full object-contain p-4" src={image.resolved_url} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="truncate text-xs text-muted-foreground">
@@ -1221,7 +1221,7 @@ function CandidateIdentityCard({
   const content = (
     <>
         <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border bg-muted/60">
-          <ProductImage alt="候选产品图片" className="h-full w-full object-contain p-2" src={candidate.image_preview_url} />
+          <ProductImage alt="候选产品图片" catalogProductId={candidate.candidate_kind === "catalog" ? candidate.catalog_product_id : null} className="h-full w-full object-contain p-2" src={candidate.image_preview_url} />
         </div>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-medium text-muted-foreground">
@@ -1674,7 +1674,7 @@ function ProductImageUploader({
       </div>
 
       <div className="mt-4 flex h-40 items-center justify-center overflow-hidden rounded-lg border bg-muted/60">
-        <ProductImage alt={`${ownedProduct.product.product_name} 产品图片`} className="h-full w-full object-contain p-3" src={image.resolved_url} />
+        <ProductImage alt={`${ownedProduct.product.product_name} 产品图片`} catalogProductId={image.source === "catalog" ? ownedProduct.product.catalog_product_id : null} className="h-full w-full object-contain p-3" src={image.resolved_url} />
       </div>
 
       {image.has_override ? (
@@ -1744,10 +1744,14 @@ function normalizeInventoryUiStatus(status: OwnedProduct["status"]): InventoryUi
   return status;
 }
 
-function ProductImage({ alt, className, src }: { alt: string; className: string; src: string | null }) {
+function ProductImage({ alt, catalogProductId, className, src }: { alt: string; catalogProductId?: string | null; className: string; src: string | null }) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  if (!src || failedSrc === src) return <ProductImagePlaceholder />;
-  return <img alt={alt} className={className} onError={() => setFailedSrc(src)} src={src} />;
+  const cachedSrc = src && catalogProductId
+    ? `/api/v1/catalog-products/${catalogProductId}/image`
+    : null;
+  const displayedSrc = cachedSrc && failedSrc !== cachedSrc ? cachedSrc : src;
+  if (!displayedSrc || failedSrc === src) return <ProductImagePlaceholder />;
+  return <img alt={alt} className={className} onError={() => setFailedSrc(displayedSrc)} src={displayedSrc} />;
 }
 
 function ProductImagePlaceholder() {
