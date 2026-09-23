@@ -24,7 +24,7 @@ describe("Today generate response", () => {
     }));
   });
 
-  it.each(["generated", "reused", "retained_after_failure", "deterministic_fallback", "retained_previous"] as const)(
+  it.each(["generated", "reused", "retained_after_failure", "deterministic_fallback"] as const)(
     "preserves the generation result %s",
     async (generationResult) => {
       const response = new Response(JSON.stringify({ data: routine, generationResult }), { status: 201 });

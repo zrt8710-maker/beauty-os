@@ -31,6 +31,11 @@ export type RoutineRepository = {
     routineDate: string,
     period: RoutinePeriod,
   ): Promise<RoutineWithStepsRow | null>;
+  findLatestBeforeDate?(
+    userId: string,
+    routineDate: string,
+    period: RoutinePeriod,
+  ): Promise<RoutineWithStepsRow | null>;
   findById(userId: string, routineId: string): Promise<RoutineWithStepsRow | null>;
   replace(input: {
     userId: string;
@@ -96,6 +101,25 @@ export function createRoutineRepository(
         .eq("routine_date", routineDate)
         .eq("period", period)
         .order("step_order", { referencedTable: "routine_steps", ascending: true })
+        .maybeSingle();
+
+      if (error) throw new Error("ROUTINE_READ_FAILED", { cause: error });
+      return data as RoutineWithStepsRow | null;
+    },
+
+    async findLatestBeforeDate(userId, routineDate, period) {
+      const earliest = new Date(`${routineDate}T00:00:00.000Z`);
+      earliest.setUTCDate(earliest.getUTCDate() - 7);
+      const { data, error } = await supabase
+        .from("routines")
+        .select(routineSelection)
+        .eq("user_id", userId)
+        .eq("period", period)
+        .lt("routine_date", routineDate)
+        .gte("routine_date", earliest.toISOString().slice(0, 10))
+        .order("routine_date", { ascending: false })
+        .order("step_order", { referencedTable: "routine_steps", ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw new Error("ROUTINE_READ_FAILED", { cause: error });

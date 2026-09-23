@@ -106,7 +106,7 @@ function PeriodLinks({ activePeriod, routines }: { activePeriod: RoutinePeriod; 
 
 export function generationResultMessage(generationResult: RoutineGenerationResult, routine: Routine) {
   if (generationResult === "reused") return "当前方案仍适合今天，已继续沿用。";
-  if (generationResult === "retained_after_failure" || generationResult === "retained_previous") {
+  if (generationResult === "retained_after_failure") {
     return "本次更新未完成，已保留之前可安全使用的方案。";
   }
   if (generationResult === "deterministic_fallback") {

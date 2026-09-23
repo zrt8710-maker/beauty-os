@@ -4,7 +4,6 @@ export type RoutineGenerationResult =
   | "generated"
   | "reused"
   | "retained_after_failure"
-  | "retained_previous"
   | "deterministic_fallback";
 
 type ResponseDiagnostics = {
@@ -72,6 +71,5 @@ function isRoutineGenerationResult(value: unknown): value is RoutineGenerationRe
   return value === "generated"
     || value === "reused"
     || value === "retained_after_failure"
-    || value === "retained_previous"
     || value === "deterministic_fallback";
 }

@@ -194,9 +194,11 @@ describe("RuleEngineService stability", () => {
         uncertainty: ["没有头对头测试。"],
       }],
     };
-    const routines = generatedRoutineRepository([sunscreen, alternativeSunscreen]);
+    const availableProducts: OwnedProductWithProductRow[] = [sunscreen, alternativeSunscreen];
+    const routines = generatedRoutineRepository(availableProducts);
     let currentProfile = profileRow();
     let currentCheckin: typeof checkin | null = checkin;
+    let currentTime = timestamp;
     const fallbackResolver: ProductDecisionResolverService = {
       resolve: vi.fn(),
       resolveMany: vi.fn(),
@@ -214,7 +216,7 @@ describe("RuleEngineService stability", () => {
       profiles: profileRepositoryDynamic(() => currentProfile),
       checkins: checkinRepositoryDynamic(() => currentCheckin),
       weather: weatherRepository(weatherRow({ uv_index: 8 })),
-      ownedProducts: ownedProductRepository([sunscreen, alternativeSunscreen]),
+      ownedProducts: ownedProductRepository(availableProducts),
       routines,
       usage: usageService([{ scope: "routine_role", period: "am", routine_role: "sunscreen", polarity: "prefer" }]),
       plannerEvidence: {
@@ -243,7 +245,7 @@ describe("RuleEngineService stability", () => {
         planWithTrace,
       },
       careNarrative: { narrate },
-      now: () => new Date(timestamp),
+      now: () => new Date(currentTime),
     });
 
     const result = await service.generate(userId, { period: "am" });
@@ -361,6 +363,46 @@ describe("RuleEngineService stability", () => {
     currentProfile = { ...currentProfile, goals: ["hydration"] };
     await service.generate(userId, { period: "am" });
     expect(planWithTrace).toHaveBeenCalledTimes(5);
+
+    // On a new date, identical current inputs may reuse the selection, but it
+    // must be persisted as a new daily routine rather than return yesterday's id.
+    currentProfile = profileRow();
+    currentCheckin = null;
+    await service.generate(userId, { period: "am" });
+    const previous = await routines.findByDate(userId, "2026-08-18", "am");
+    if (!previous) throw new Error("Expected the previous daily routine");
+    routines.findByDate = vi.fn(async (_userId, date) => date === "2026-08-18" ? previous : null);
+    routines.findLatestBeforeDate = vi.fn().mockResolvedValue(previous);
+    routines.replace = vi.fn(async (input) => ({
+      ...previous,
+      id: "20000000-0000-4000-8000-000000000019",
+      routine_date: input.routineDate,
+      skin_snapshot: input.skinSnapshot,
+      weather_snapshot: input.weatherSnapshot,
+      decision_snapshot: input.decisionSnapshot,
+      excluded_products: input.excludedProducts,
+      steps: previous.steps.map((step, index) => ({ ...step, ...input.steps[index] })),
+    }));
+    currentTime = "2026-08-19T08:00:00+00:00";
+    const plannerCallsBeforeReuse = planWithTrace.mock.calls.length;
+    const crossDayResult = vi.fn();
+    const today = await service.generate(userId, { period: "am" }, crossDayResult);
+    expect(today.routine_date).toBe("2026-08-19");
+    expect(today.steps.map((step) => step.owned_product_id)).toEqual(previous.steps.map((step) => step.owned_product_id));
+    expect(crossDayResult).toHaveBeenCalledWith("reused", expect.any(String));
+    expect(planWithTrace).toHaveBeenCalledTimes(plannerCallsBeforeReuse);
+    expect(routines.replace).toHaveBeenCalledWith(expect.objectContaining({ routineDate: "2026-08-19" }));
+
+    availableProducts.push(ownedWithType("71000000-0000-4000-8000-000000000015", "moisturizer"));
+    currentTime = "2026-08-20T08:00:00+00:00";
+    await service.generate(userId, { period: "am" });
+    expect(planWithTrace).toHaveBeenCalledTimes(plannerCallsBeforeReuse + 1);
+
+    vi.mocked(routines.findLatestBeforeDate!).mockClear();
+    currentTime = "2026-08-21T08:00:00+00:00";
+    await service.generate(userId, { period: "am", forceRegenerate: true });
+    expect(routines.findLatestBeforeDate).not.toHaveBeenCalled();
+    expect(planWithTrace).toHaveBeenCalledTimes(plannerCallsBeforeReuse + 2);
   });
 
   it("persists a versioned decision snapshot from the same generation", async () => {

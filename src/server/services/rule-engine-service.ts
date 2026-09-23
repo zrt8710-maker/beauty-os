@@ -790,6 +790,9 @@ export function createRuleEngineService(
           dependencies.ownedProducts.listByUserId(userId, {}, { requestId })),
       ]);
       const { profile, routineDate, existing } = context;
+      const previous = !forceRegenerate && !existing
+        ? await dependencies.routines.findLatestBeforeDate?.(userId, routineDate, period).catch(() => null) ?? null
+        : null;
       const result = await buildRoutineExplanation(
         userId,
         routineDate,
@@ -798,7 +801,7 @@ export function createRuleEngineService(
         existing,
         forceRegenerate,
         requestId,
-        { checkin: context.checkin, weather: context.weather, products },
+        { checkin: context.checkin, weather: context.weather, products, previous },
       );
       if ("reuseExisting" in result) {
         onGenerationResult?.(result.generationResult, result.explanation);
@@ -848,10 +851,10 @@ export function createRuleEngineService(
         requestId,
       });
       logPlannerTiming("persistence", persistenceStartedAt, { requestId, period });
-      const generationResult = decisionSnapshot.planner?.generationSource === "deterministic_fallback"
+      const generationResult = result.generationResult ?? (decisionSnapshot.planner?.generationSource === "deterministic_fallback"
         ? "deterministic_fallback" as const
-        : "generated" as const;
-      onGenerationResult?.(generationResult);
+        : "generated" as const);
+      onGenerationResult?.(generationResult, result.generationExplanation);
       logPlannerTiming("total_generation", totalStartedAt, {
         requestId,
         period,
@@ -873,18 +876,21 @@ export function createRuleEngineService(
       checkin: SkinCheckinRow | null;
       weather: WeatherRow | null;
       products: OwnedProductWithProductRow[];
+      previous: RoutineWithStepsRow | null;
     },
   ): Promise<{
     checkin: SkinCheckinRow | null;
     weather: WeatherRow | null;
     plan: RoutinePlan;
     decisionSnapshot: RoutineDecisionSnapshot;
+    generationResult?: "reused";
+    generationExplanation?: string;
   } | {
     reuseExisting: RoutineWithStepsRow;
     generationResult: "reused" | "retained_after_failure";
     explanation: string;
   }> {
-    const { checkin, weather, products } = initialData;
+    const { checkin, weather, products, previous } = initialData;
     const maxSteps = period === "am"
       ? profile?.max_am_steps ?? 4
       : profile?.max_pm_steps ?? 5;
@@ -1006,6 +1012,8 @@ export function createRuleEngineService(
     const plannerBuild = await buildCarePlannerInput({ routineDate, period, checkin, profile, weather, products, productSafety, feedbackStats, plannerEvidence: dependencies.plannerEvidence, plannerEvidenceByCatalogId: knowledgeBundle?.plannerEvidenceByCatalogId, dailyCareNeeds, maxSteps, personalMemoryContext, routineRolePreferences, incumbentOwnedProductIds: new Set(existing?.steps.map((step) => step.owned_product_id) ?? []), requestId });
     const plannerInput = plannerBuild.input;
     const contextFingerprint = todayDecisionContextFingerprint({ routineDate, plannerInput });
+    const crossDayFingerprint = crossDayDecisionContextFingerprint(plannerInput);
+    const inventorySignature = hashDecisionValue([...products].sort((left, right) => left.id.localeCompare(right.id)));
     logPlannerTiming("planner_input_build", plannerInputStartedAt, {
       requestId, productCount: plannerInput.eligibleProducts.length,
     });
@@ -1022,6 +1030,25 @@ export function createRuleEngineService(
         generationResult: "reused",
         explanation: "今天的皮肤状态和环境没有出现需要调整护理的明显变化，当前方案仍能覆盖主要需要，因此继续沿用这套搭配。",
       };
+    }
+    if (reuseAllowed && !existing && previous) {
+      const reused = buildCrossDayReusablePlan({
+        previous,
+        plannerInput,
+        dailyCareNeeds,
+        routineDate,
+        contextFingerprint,
+        crossDayFingerprint,
+        inventorySignature,
+        products,
+      });
+      if (reused) {
+        logReuseDecision(requestId, "reuse", ["PREVIOUS_DAY_CONTEXT_STABLE"]);
+        return { checkin, weather, ...reused,
+          generationResult: "reused",
+          generationExplanation: "已核对今天的皮肤、环境、库存与产品依据，昨天的搭配仍适合，已保存为今天的方案。",
+        };
+      }
     }
     const providerStartedAt = Date.now();
     if (reuseAllowed && existing) {
@@ -1084,6 +1111,8 @@ export function createRuleEngineService(
         plannerSnapshot = { version: 1, generationSource: "llm", strategy: validated.decision.strategy, strategySummary: validated.decision.strategy_summary, structuredDecision: {
           ...validated.decision,
           contextFingerprint,
+          crossDayFingerprint,
+          inventorySignature,
           inputProductCount: plannerInput.eligibleProducts.length,
           tierBEvidenceProductCount: plannerInput.eligibleProducts.filter((product) => product.productEvidence.evidenceRefs.length > 0).length,
           selectedProductEvidence,
@@ -1243,11 +1272,104 @@ function todayDecisionContextFingerprint(input: {
   routineDate: string;
   plannerInput: CarePlannerInput;
 }) {
-  const deterministicInput = { ...input.plannerInput };
-  delete deterministicInput.personalMemoryContext;
   return createHash("sha256")
-    .update(stableStringify({ routineDate: input.routineDate, plannerInput: deterministicInput }))
+    .update(stableStringify({ routineDate: input.routineDate, plannerInput: deterministicPlannerInput(input.plannerInput) }))
     .digest("hex");
+}
+
+function crossDayDecisionContextFingerprint(plannerInput: CarePlannerInput) {
+  return hashDecisionValue(deterministicPlannerInput(plannerInput));
+}
+
+function deterministicPlannerInput(plannerInput: CarePlannerInput) {
+  const deterministicInput = { ...plannerInput };
+  delete deterministicInput.personalMemoryContext;
+  return deterministicInput;
+}
+
+/** Carry forward only an identical validated decision; otherwise use the full Planner path. */
+function buildCrossDayReusablePlan(input: {
+  previous: RoutineWithStepsRow;
+  plannerInput: CarePlannerInput;
+  dailyCareNeeds: DailyCareNeeds;
+  routineDate: string;
+  contextFingerprint: string;
+  crossDayFingerprint: string;
+  inventorySignature: string;
+  products: OwnedProductWithProductRow[];
+}): { plan: RoutinePlan; decisionSnapshot: RoutineDecisionSnapshot } | null {
+  const { previous, plannerInput } = input;
+  if (previous.routine_date >= input.routineDate || !["generated", "completed"].includes(previous.status) || previous.steps.length === 0) return null;
+  // Expiry can change an excluded product's explanation even when inventory rows are unchanged.
+  if (input.products.some((product) => product.expires_on
+    && product.expires_on >= previous.routine_date
+    && product.expires_on < input.routineDate)) return null;
+  const snapshot = routineDecisionSnapshotSchema.safeParse(previous.decision_snapshot);
+  if (!snapshot.success || snapshot.data.planner?.generationSource !== "llm") return null;
+  const structured = snapshot.data.planner.structuredDecision;
+  if (!structured || typeof structured !== "object" || Array.isArray(structured)) return null;
+  const saved = structured as Record<string, unknown>;
+  if (saved.crossDayFingerprint !== input.crossDayFingerprint || saved.inventorySignature !== input.inventorySignature) return null;
+
+  const decisionFields = Object.fromEntries(Object.keys(carePlannerDecisionSchema.shape).map((key) => [key, saved[key]]));
+  const decision = carePlannerDecisionSchema.safeParse(decisionFields);
+  if (!decision.success) return null;
+  const validation = validateCarePlannerDecisionDetailed({
+    decision: decision.data,
+    candidates: plannerInput.eligibleProducts,
+    careGuidanceIds: plannerInput.careGuidance.map((item) => item.guidanceId),
+    hardRestrictions: plannerInput.hardRestrictions,
+    maxSteps: plannerInput.maxSteps,
+    skinSignals: plannerInput.skinSignals,
+    weatherSignals: plannerInput.weather?.signals ?? [],
+    period: plannerInput.period,
+    consideredPurposes: [...new Set([
+      ...input.dailyCareNeeds.requiredRoles, ...input.dailyCareNeeds.optionalRoles,
+    ].flatMap((role) => routineRoleToPurpose[role] ? [routineRoleToPurpose[role]!] : []))],
+    routineRolePreferences: plannerInput.routineRolePreferences,
+  });
+  if (!validation.valid || validation.decision.selected_steps.length !== previous.steps.length) return null;
+  if (validation.decision.selected_steps.some((step, index) =>
+    step.ownedProductId !== previous.steps[index]?.owned_product_id
+    || purposeToRoutineRole[step.purpose] !== previous.steps[index]?.role)) return null;
+
+  try {
+    const source = toRoutine(previous);
+    const plan: RoutinePlan = {
+      steps: source.steps.map((step) => ({
+        owned_product_id: step.owned_product_id,
+        step_order: step.step_order,
+        role: step.role,
+        reason: step.reason,
+        reason_code: step.reason_code,
+        score: step.score,
+        score_breakdown: step.score_breakdown,
+      })),
+      excludedProducts: source.excluded_products,
+      capabilityGaps: snapshot.data.capabilityGaps,
+      decisionFacts: {
+        routinePolicy: snapshot.data.routinePolicy,
+        selectedSteps: snapshot.data.selectedSteps,
+        abstentions: snapshot.data.abstentions,
+      },
+    };
+    const decisionSnapshot = routineDecisionSnapshotSchema.parse({
+      ...snapshot.data,
+      dailyCareNeeds: input.dailyCareNeeds,
+      planner: {
+        ...snapshot.data.planner,
+        structuredDecision: {
+          ...saved,
+          contextFingerprint: input.contextFingerprint,
+          crossDayFingerprint: input.crossDayFingerprint,
+          inventorySignature: input.inventorySignature,
+        },
+      },
+    });
+    return { plan, decisionSnapshot };
+  } catch {
+    return null;
+  }
 }
 
 function storedTodayDecisionContextFingerprint(existing: RoutineWithStepsRow) {

@@ -355,7 +355,6 @@ describe("Today user-facing experience", () => {
     expect(source).toContain("当前方案仍适合今天，已继续沿用。");
     expect(source).toContain("本次更新未完成，已保留之前可安全使用的方案。");
     expect(source).toContain('generationResult === "retained_after_failure"');
-    expect(source).toContain('generationResult === "retained_previous"');
   });
 });
 
