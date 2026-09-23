@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { requestEmailOtp, verifyEmailOtpCode } from "@/server/auth/email-otp";
 
-describe("Email 6-digit OTP auth", () => {
+describe("Email OTP auth", () => {
   it("normalizes an email and sends the same OTP request for new or existing users", async () => {
     const send = vi.fn().mockResolvedValue({ error: null });
     const result = await requestEmailOtp({ email: " User@Example.com " }, send);
@@ -38,6 +38,13 @@ describe("Email 6-digit OTP auth", () => {
     const result = await verifyEmailOtpCode({ email: "user@example.com", token: "123456" }, verify);
     expect(result.status).toBe("success");
     expect(verify).toHaveBeenCalledWith("user@example.com", "123456");
+  });
+
+  it("accepts an eight-digit token from the hosted Supabase project", async () => {
+    const verify = vi.fn().mockResolvedValue({ error: null });
+    const result = await verifyEmailOtpCode({ email: "user@example.com", token: "12345678" }, verify);
+    expect(result.status).toBe("success");
+    expect(verify).toHaveBeenCalledWith("user@example.com", "12345678");
   });
 
   it("rejects malformed or incorrect codes without reporting success", async () => {

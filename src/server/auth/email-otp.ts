@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const emailSchema = z.string().trim().toLowerCase().email();
-const tokenSchema = z.string().trim().regex(/^\d{6}$/u);
+const tokenSchema = z.string().trim().regex(/^\d{6,10}$/u);
 
 export type EmailOtpActionState = {
   status: "idle" | "success" | "error";
@@ -56,7 +56,7 @@ export async function verifyEmailOtpCode(
     return { status: "error", message: "该邮箱未获准使用此 Beauty OS 实例。" };
   }
   if (!parsedToken.success) {
-    return { status: "error", message: "请输入邮件中的 6 位验证码。", fieldErrors: { token: ["请输入邮件中的 6 位验证码。"] } };
+    return { status: "error", message: "请输入邮件中的验证码。", fieldErrors: { token: ["请输入邮件中的验证码。"] } };
   }
   const { error } = await verify(parsedEmail.data, parsedToken.data);
   if (error?.code === "network_error") {

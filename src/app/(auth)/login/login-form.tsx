@@ -68,7 +68,7 @@ export function LoginForm() {
         ) : null}
       </div>
 
-      <p id="email-help" className="text-xs leading-6 text-secondary-foreground">无需密码，我们会向你的邮箱发送 6 位验证码。</p>
+      <p id="email-help" className="text-xs leading-6 text-secondary-foreground">无需密码，我们会向你的邮箱发送验证码。</p>
       <Button className="beauty-login-submit h-12 w-full" disabled={sending || (sent && cooldown > 0)} type="submit">
         <span>{sending ? "正在发送…" : sent ? cooldown > 0 ? `${cooldown} 秒后可重新发送` : "重新发送验证码" : "获取验证码"}</span>
         <svg className="beauty-login-action-icon" data-pending={sending} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -102,10 +102,10 @@ export function LoginForm() {
               className="beauty-field beauty-login-input"
               id="token"
               inputMode="numeric"
-              maxLength={6}
+              maxLength={10}
               name="token"
-              pattern="[0-9]{6}"
-              placeholder="6 位验证码"
+              pattern="[0-9]{6,10}"
+              placeholder="邮箱验证码"
               required
               type="text"
             />
