@@ -59,6 +59,7 @@ describe("OwnedProductIdentityRepository", () => {
       }),
     );
     expect(rpc.mock.calls[0]?.[1]).not.toHaveProperty("p_identity_status");
+    expect(select).toHaveBeenCalledWith("*, product:products(*, catalog_product:catalog_products(catalog_image_url))");
     expect(from).not.toHaveBeenCalled();
     expect(timings).toEqual(expect.arrayContaining([
       expect.objectContaining({ stage: "asset_rpc" }),

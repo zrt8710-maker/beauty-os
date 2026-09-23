@@ -81,6 +81,15 @@ export async function POST(request: Request) {
 }
 
 function logTiming(path: "internal_hit" | "external_discovery" | "unauthorized" | "invalid" | "invalid_recognition_reference" | "failed", timings: ProductIdentityTimingEvent[], startedAt: number) {
+  // Production timing contains only stage names and durations, never search text.
+  if (process.env.NODE_ENV === "production") {
+    console.info("PRODUCT_IDENTITY_RESOLVE_TIMING", {
+      path,
+      timings: timings.map(({ stage, elapsed_ms }) => ({ stage, elapsed_ms })),
+      total_ms: Math.round(performance.now() - startedAt),
+    });
+    return;
+  }
   productIdentityDebug("Resolve Timing", {
     path,
     timings: timings.map((event) => ({ ...event })),

@@ -11,6 +11,7 @@ import {
 } from "@/schemas/product";
 import type { OwnedProductIdentityRepository } from "@/server/repositories/owned-product-identity-repository";
 import { toOwnedProduct } from "@/server/services/inventory-service";
+import { resolveOwnedProductImage } from "@/server/services/upload-service";
 import type { ProductIdentityMatcher } from "@/server/services/product-identity-matching-service";
 import { verifyRecognitionConfirmationToken } from "@/server/product-recognition/recognition-confirmation-token";
 import type { IdentityReconciliationContext } from "@/server/product-recognition/recognition-confirmation-token";
@@ -156,7 +157,7 @@ export function createOwnedProductWithIdentityService(
           // Scheduling must never make User Asset creation fail.
         }
       }
-      return toOwnedProduct(row);
+      return resolveOwnedProductImage(toOwnedProduct(row), []);
     },
   };
 }

@@ -123,6 +123,26 @@ describe("CreateOwnedProductWithIdentity", () => {
     expect(result.product.catalog_product_id).toBe(catalogId);
   });
 
+  it("returns the linked Catalog image immediately after a successful save", async () => {
+    const { repository, service } = setup();
+    vi.mocked(repository.create).mockResolvedValue({
+      ...linkedRow,
+      product: {
+        ...linkedRow.product,
+        catalog_product: { catalog_image_url: "https://catalog.example/serum.jpg" },
+      },
+    });
+
+    const result = await service.create("user-a", input());
+
+    expect(result.product.catalog_image_url).toBe("https://catalog.example/serum.jpg");
+    expect(result.image).toEqual({
+      resolved_url: "https://catalog.example/serum.jpg",
+      source: "catalog",
+      has_override: false,
+    });
+  });
+
   it("schedules Catalog research after the asset write without awaiting it", async () => {
     const { matcher, repository, confirmedCatalogCandidates } = setup();
     const schedule = vi.fn(() => { throw new Error("background unavailable"); });

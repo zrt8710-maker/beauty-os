@@ -24,7 +24,7 @@ export type OwnedProductIdentityRepository = {
   ): Promise<OwnedProductWithProductRow>;
 };
 
-const selection = "*, product:products(*)" as const;
+const selection = "*, product:products(*, catalog_product:catalog_products(catalog_image_url))" as const;
 const rpcName = "create_owned_product_with_identity_idempotent";
 
 export function createOwnedProductIdentityRepository(
@@ -129,7 +129,7 @@ export function createOwnedProductIdentityRepository(
       const hydrationStartedAt = performance.now();
       const { data: product, error: productError } = await supabase
         .from("products")
-        .select("*")
+        .select("*, catalog_product:catalog_products(catalog_image_url)")
         .eq("id", ownedRow.product_id)
         .single();
       timingReporter?.({

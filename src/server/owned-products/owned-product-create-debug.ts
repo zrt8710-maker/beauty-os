@@ -73,7 +73,7 @@ export function ownedProductCreateTimingDebug(
   timings: Array<OwnedProductCreateTimingEvent | { stage: "auth"; elapsed_ms: number }>,
   startedAt: number,
 ) {
-  if (process.env.NODE_ENV !== "development") return;
+  // Stage names and durations contain no product, user, or credential data.
   console.info("OWNED_PRODUCT_CREATE_TIMING", {
     path,
     timings,
