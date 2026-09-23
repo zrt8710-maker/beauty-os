@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import type { EmailOtpActionState } from "@/server/auth/email-otp";
@@ -11,8 +11,6 @@ const initialState: EmailOtpActionState = { status: "idle" };
 
 export function LoginForm() {
   const [sendState, sendAction, sending] = useActionState(sendEmailOtp, initialState);
-  const [verifyState, setVerifyState] = useState<EmailOtpActionState>(initialState);
-  const [verifying, setVerifying] = useState(false);
   const [email, setEmail] = useState("");
   const [now, setNow] = useState(() => Date.now());
   const [inputError, setInputError] = useState("");
@@ -23,42 +21,12 @@ export function LoginForm() {
     Math.ceil(((sendState.cooldownUntil ?? 0) - now) / 1000),
   );
   const emailError = inputError || sendState.fieldErrors?.email?.[0];
-  const tokenError = verifyState.fieldErrors?.token?.[0];
 
   useEffect(() => {
     if (!sendState.cooldownUntil) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [sendState.cooldownUntil]);
-
-  async function handleVerify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (verifying) return;
-
-    setVerifying(true);
-    setVerifyState(initialState);
-    try {
-      const response = await fetch("/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: sentEmail,
-          token: new FormData(event.currentTarget).get("token"),
-        }),
-        credentials: "same-origin",
-      });
-      const result = (await response.json()) as EmailOtpActionState;
-      if (result.status === "success" && result.redirectTo) {
-        window.location.replace(result.redirectTo);
-        return;
-      }
-      setVerifyState(result);
-    } catch {
-      setVerifyState({ status: "error", message: "网络连接失败，请稍后重试。" });
-    } finally {
-      setVerifying(false);
-    }
-  }
 
   return (
     <div className="beauty-login-form space-y-5" data-sent={sent}>
@@ -113,13 +81,12 @@ export function LoginForm() {
       </form>
 
       {sent ? (
-        <form onSubmit={handleVerify} className="space-y-5" aria-busy={verifying}>
+        <form action="/auth/verify-otp" method="post" className="space-y-5">
           <input name="email" type="hidden" value={sentEmail} />
           <div>
             <label className="sr-only" htmlFor="token">验证码</label>
             <input
-              aria-describedby={tokenError ? "token-help token-error" : "token-help"}
-              aria-invalid={Boolean(tokenError)}
+              aria-describedby="token-help"
               autoComplete="one-time-code"
               className="beauty-field beauty-login-input"
               id="token"
@@ -132,16 +99,8 @@ export function LoginForm() {
               type="text"
             />
             <p id="token-help" className="mt-2 text-xs leading-6 text-secondary-foreground">验证码已发送至你的邮箱</p>
-            {tokenError ? <p id="token-error" role="alert" className="mt-2 text-sm text-destructive">{tokenError}</p> : null}
           </div>
-          <Button className="beauty-login-submit h-12 w-full" disabled={verifying} type="submit">
-            {verifying ? "正在验证…" : "登录"}
-          </Button>
-          {verifyState.message && !verifying ? (
-            <p aria-live="polite" className={verifyState.status === "error" ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
-              {verifyState.message}
-            </p>
-          ) : null}
+          <Button className="beauty-login-submit h-12 w-full" type="submit">登录</Button>
         </form>
       ) : null}
     </div>

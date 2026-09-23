@@ -4,6 +4,9 @@ import { LoginScene } from "./login-scene";
 const errorMessages: Record<string, string> = {
   invalid_code: "登录链接无效或已过期，请重新发送。",
   not_allowed: "该邮箱未获准使用此 Beauty OS 实例。",
+  invalid_otp: "验证码错误或已过期，请重新获取。",
+  otp_session: "验证码已通过，但登录会话未建立，请稍后重试。",
+  otp_network: "网络连接失败，请稍后重试。",
 };
 
 type LoginPageProps = {

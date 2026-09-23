@@ -12,6 +12,7 @@ export async function verifyEmailOtpRequest(
 ): Promise<EmailOtpActionState> {
   const supabase = providedClient ?? await createClient();
   let userId: string | undefined;
+  let hasSession = false;
 
   const result = await verifyEmailOtpCode(
     {
@@ -27,6 +28,7 @@ export async function verifyEmailOtpRequest(
           type: "email",
         });
         userId = data.user?.id;
+        hasSession = Boolean(data.session?.access_token && data.session?.refresh_token);
         return { error };
       } catch {
         return { error: { message: "network failure", code: "network_error" } };
@@ -34,9 +36,9 @@ export async function verifyEmailOtpRequest(
     },
   );
 
-  if (result.status !== "success" || !userId) {
+  if (result.status !== "success" || !userId || !hasSession) {
     return result.status === "success"
-      ? { status: "error", message: "验证码错误或已过期，请重新获取。" }
+      ? { status: "error", message: "验证码已通过，但登录会话未建立，请稍后重试。" }
       : result;
   }
 

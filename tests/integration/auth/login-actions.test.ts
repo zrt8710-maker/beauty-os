@@ -30,7 +30,7 @@ describe("Email OTP login actions", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_test");
     vi.stubEnv("AUTH_ALLOWED_EMAIL", "owner@example.com");
     mocks.signInWithOtp.mockResolvedValue({ error: null });
-    mocks.verifyOtp.mockResolvedValue({ data: { user: { id: "user-a" } }, error: null });
+    mocks.verifyOtp.mockResolvedValue({ data: { user: { id: "user-a" }, session: { access_token: "access", refresh_token: "refresh" } }, error: null });
   });
 
   it.each(["owner@example.com", "new-user@example.net"])(

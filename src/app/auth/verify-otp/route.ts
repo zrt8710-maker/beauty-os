@@ -8,10 +8,7 @@ import { verifyEmailOtpRequest } from "@/server/auth/verify-email-otp-request";
 
 export async function POST(request: NextRequest) {
   try {
-    const input = (await request.json()) as { email?: unknown; token?: unknown };
-    const formData = new FormData();
-    formData.set("email", typeof input.email === "string" ? input.email : "");
-    formData.set("token", typeof input.token === "string" ? input.token : "");
+    const formData = await request.formData();
 
     const env = getPublicEnv();
     const cookieUpdates: Array<{ name: string; value: string; options: CookieOptions }> = [];
@@ -35,17 +32,32 @@ export async function POST(request: NextRequest) {
     );
 
     const result = await verifyEmailOtpRequest(formData, supabase);
-    const response = NextResponse.json(result, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    if (result.status === "success" && cookieUpdates.length === 0) {
+      return loginError(request, "otp_session");
+    }
+    if (result.status !== "success" || !result.redirectTo) {
+      const reason = result.message?.includes("网络")
+        ? "otp_network"
+        : result.message?.includes("会话")
+          ? "otp_session"
+          : "invalid_otp";
+      return loginError(request, reason);
+    }
+
+    const response = NextResponse.redirect(new URL(result.redirectTo, request.url), 303);
+    response.headers.set("Cache-Control", "no-store");
+    response.headers.set("X-Auth-Cookie-Writes", String(cookieUpdates.length));
     cookieUpdates.forEach(({ name, value, options }) => {
       response.cookies.set(name, value, options);
     });
     return response;
   } catch {
-    return NextResponse.json(
-      { status: "error", message: "验证失败，请稍后重试。" },
-      { status: 500, headers: { "Cache-Control": "no-store" } },
-    );
+    return loginError(request, "otp_network");
   }
+}
+
+function loginError(request: NextRequest, reason: "invalid_otp" | "otp_session" | "otp_network") {
+  const response = NextResponse.redirect(new URL(`/login?error=${reason}`, request.url), 303);
+  response.headers.set("Cache-Control", "no-store");
+  return response;
 }
