@@ -8,8 +8,9 @@ import { createProfileRepository } from "@/server/repositories/profile-repositor
 
 export async function verifyEmailOtpRequest(
   formData: FormData,
+  providedClient?: Awaited<ReturnType<typeof createClient>>,
 ): Promise<EmailOtpActionState> {
-  const supabase = await createClient();
+  const supabase = providedClient ?? await createClient();
   let userId: string | undefined;
 
   const result = await verifyEmailOtpCode(
