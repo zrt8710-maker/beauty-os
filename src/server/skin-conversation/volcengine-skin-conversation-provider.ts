@@ -1,7 +1,8 @@
 import "server-only";
 
-import { parseConversationFirstRawOutput, type SkinConversationRequest } from "@/schemas/skin-conversation";
+import { parseConversationFirstModelOutput, parseConversationFirstRawOutput, type SkinConversationRequest } from "@/schemas/skin-conversation";
 import { SKIN_ASSESSMENT_FRAMEWORK_PROMPT } from "./assessment-framework-prompt";
+import { SKIN_CONVERSATION_REPLY_PROMPT } from "./natural-reply-prompt";
 import { SkinConversationProviderError, type SkinConversationProvider } from "./provider";
 import { deriveActiveQuestionContext, parseDeterministicShortAnswer } from "./contextual-turn-interpretation";
 import { deriveConversationPriority } from "./conversation-priority";
@@ -30,7 +31,8 @@ const responseSchema = { type: "object", additionalProperties: false, required: 
 export function createVolcengineSkinConversationProvider(options: { apiKey: string; model: string; baseUrl: string; fetchImpl?: typeof fetch }): SkinConversationProvider {
   const fetchImpl = options.fetchImpl ?? fetch;
   return { providerCode: "volcengine_responses", model: options.model, async extract(input, callbacks) {
-    const inputForModel = modelInput(input);
+    const finalizing = input.finalize_requested === true;
+    const inputForModel = finalizing ? modelInput(input) : naturalReplyInput(input);
     callbacks?.context_assembly?.();
     let response: Response;
     try {
@@ -40,24 +42,30 @@ export function createVolcengineSkinConversationProvider(options: { apiKey: stri
         store: false,
         stream: true,
         thinking: { type: "disabled" },
-        instructions: SKIN_ASSESSMENT_FRAMEWORK_PROMPT,
+        instructions: finalizing ? SKIN_ASSESSMENT_FRAMEWORK_PROMPT : SKIN_CONVERSATION_REPLY_PROMPT,
         input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(inputForModel) }] }],
-        text: { format: { type: "json_schema", name: "skin_conversation_assessment", strict: true, schema: responseSchema } },
-        max_output_tokens: 1800,
+        ...(finalizing ? { text: { format: { type: "json_schema", name: "skin_conversation_assessment", strict: true, schema: responseSchema } } } : {}),
+        max_output_tokens: finalizing ? 1800 : 450,
       }) });
     } catch (error) { throw new SkinConversationProviderError("Skin conversation provider network request failed.", "network"); }
     if (!response.ok || response.body === null) throw new SkinConversationProviderError(`Skin conversation provider failed (${response.status}).`, "http");
     try {
-      const replyExtractor = new IncrementalReplyJsonExtractor();
+      const replyExtractor = finalizing ? new IncrementalReplyJsonExtractor() : null;
       const outputText = response.headers.get("content-type")?.includes("text/event-stream")
         ? await readStructuredResponseStream(response.body, {
           onFirstEvent: () => callbacks?.provider_first_event?.(),
           onOutputTextDelta: (delta) => {
-            for (const replyDelta of replyExtractor.push(delta)) callbacks?.onReplyDelta?.(replyDelta);
+            if (replyExtractor) for (const replyDelta of replyExtractor.push(delta)) callbacks?.onReplyDelta?.(replyDelta);
+            else callbacks?.onReplyDelta?.(delta);
           },
         })
         : outputTextFromResponse(await response.json() as { output_text?: unknown; output?: unknown });
-      if (!outputText) throw new Error("Skin conversation provider returned no structured output.");
+      if (!outputText) throw new Error("Skin conversation provider returned no output.");
+      if (!finalizing) {
+        const result = parseConversationFirstModelOutput({ reply: outputText.trim() });
+        callbacks?.provider_completed?.();
+        return result;
+      }
       let candidateText = outputText;
       try { candidateText = JSON.stringify(sanitizeProviderOutput(normalizeContinuingDailyState(JSON.parse(outputText)))); } catch { /* recover the reply from partial JSON below */ }
       const result = parseConversationFirstRawOutput(candidateText);
@@ -82,6 +90,16 @@ function modelInput(input: SkinConversationRequest) {
     known_fields: input.existing_checkin.known_fields,
     values: Object.fromEntries(input.existing_checkin.known_fields.map((field) => [field, input.existing_checkin![field]])),
   } : null, today_existing_daily_state: input.existing_checkin?.daily_state ?? null, limited_profile_context: input.profile_context, active_turn_context: input.active_turn_context, current_turn_context: "This context is supplied by Beauty OS for the active browser interaction only. Do not use or assume provider conversation memory." };
+}
+
+function naturalReplyInput(input: SkinConversationRequest) {
+  return {
+    user_message: input.message,
+    active_turn_context: input.active_turn_context,
+    limited_profile_context: input.profile_context,
+    personalMemoryContext: input.personalMemoryContext,
+    today_existing_daily_state: input.existing_checkin?.daily_state ?? null,
+  };
 }
 
 /** Compact, non-durable context that helps the model talk naturally; only validated output may become facts. */

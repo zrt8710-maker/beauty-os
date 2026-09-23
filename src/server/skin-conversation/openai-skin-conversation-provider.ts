@@ -1,7 +1,8 @@
 import "server-only";
 
-import { parseConversationFirstRawOutput, type SkinConversationRequest } from "@/schemas/skin-conversation";
+import { parseConversationFirstModelOutput, parseConversationFirstRawOutput, type SkinConversationRequest } from "@/schemas/skin-conversation";
 import { SKIN_ASSESSMENT_FRAMEWORK_PROMPT } from "./assessment-framework-prompt";
+import { SKIN_CONVERSATION_REPLY_PROMPT } from "./natural-reply-prompt";
 import type { SkinConversationProvider } from "./provider";
 import { deriveConversationPriority } from "./conversation-priority";
 import { buildConversationContext } from "./volcengine-skin-conversation-provider";
@@ -32,25 +33,33 @@ export function createOpenAiSkinConversationProvider(options: { apiKey: string; 
   const fetchImpl = options.fetchImpl ?? fetch;
   const model = options.model ?? "gpt-4.1-mini";
   return { providerCode: "openai_responses", model, async extract(input, callbacks) {
-    const inputForModel = modelInput(input);
+    const finalizing = input.finalize_requested === true;
+    const inputForModel = finalizing ? modelInput(input) : naturalReplyInput(input);
     callbacks?.context_assembly?.();
     callbacks?.provider_request_started?.();
     const response = await fetchImpl(OPENAI_RESPONSES_URL, { method: "POST", headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({
-      model, store: false, instructions: SKIN_ASSESSMENT_FRAMEWORK_PROMPT,
+      model, store: false, instructions: finalizing ? SKIN_ASSESSMENT_FRAMEWORK_PROMPT : SKIN_CONVERSATION_REPLY_PROMPT,
       input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(inputForModel) }] }],
-      text: { format: { type: "json_schema", name: "skin_conversation_assessment", strict: true, schema: responseSchema } }, max_output_tokens: 1800, stream: true,
+      ...(finalizing ? { text: { format: { type: "json_schema", name: "skin_conversation_assessment", strict: true, schema: responseSchema } } } : {}),
+      max_output_tokens: finalizing ? 1800 : 450, stream: true,
     }) });
     if (!response.ok || response.body === null) throw new Error(`Skin conversation provider failed (${response.status}).`);
-    const replyExtractor = new IncrementalReplyJsonExtractor();
+    const replyExtractor = finalizing ? new IncrementalReplyJsonExtractor() : null;
     const outputText = response.headers.get("content-type")?.includes("text/event-stream")
       ? await readStructuredResponseStream(response.body, {
         onFirstEvent: () => callbacks?.provider_first_event?.(),
         onOutputTextDelta: (delta) => {
-          for (const replyDelta of replyExtractor.push(delta)) callbacks?.onReplyDelta?.(replyDelta);
+          if (replyExtractor) for (const replyDelta of replyExtractor.push(delta)) callbacks?.onReplyDelta?.(replyDelta);
+          else callbacks?.onReplyDelta?.(delta);
         },
       })
       : (await response.json() as { output_text?: unknown }).output_text;
-    if (typeof outputText !== "string") throw new Error("Skin conversation provider returned no structured output.");
+    if (typeof outputText !== "string") throw new Error("Skin conversation provider returned no output.");
+    if (!finalizing) {
+      const result = parseConversationFirstModelOutput({ reply: outputText.trim() });
+      callbacks?.provider_completed?.();
+      return result;
+    }
     const result = parseConversationFirstRawOutput(outputText);
     callbacks?.provider_completed?.();
     return result;
@@ -67,4 +76,14 @@ function modelInput(input: SkinConversationRequest) {
     known_fields: input.existing_checkin.known_fields,
     values: Object.fromEntries(input.existing_checkin.known_fields.map((field) => [field, input.existing_checkin![field]])),
   } : null, today_existing_daily_state: input.existing_checkin?.daily_state ?? null, active_turn_context: input.active_turn_context, limited_profile_context: input.profile_context, current_turn_context: "This context is supplied by Beauty OS for the active browser interaction only. Do not use or assume provider conversation memory." };
+}
+
+function naturalReplyInput(input: SkinConversationRequest) {
+  return {
+    user_message: input.message,
+    active_turn_context: input.active_turn_context,
+    limited_profile_context: input.profile_context,
+    personalMemoryContext: input.personalMemoryContext,
+    today_existing_daily_state: input.existing_checkin?.daily_state ?? null,
+  };
 }
