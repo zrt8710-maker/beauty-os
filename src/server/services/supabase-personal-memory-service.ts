@@ -21,7 +21,7 @@ export function createSupabasePersonalMemoryService(
   async function retrieve(query: string): Promise<string[]> {
     try {
       const { data, error } = await supabase.from("personal_memories")
-        .select("content, created_at")
+        .select("content")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(MAX_CANDIDATES);
@@ -32,7 +32,8 @@ export function createSupabasePersonalMemoryService(
         .sort((a, b) => b.score - a.score || a.index - b.index)
         .slice(0, MAX_CONTEXT)
         .map((row) => row.content);
-    } catch {
+    } catch (error) {
+      logMemoryFailure("read", error);
       return [];
     }
   }
@@ -52,8 +53,9 @@ export function createSupabasePersonalMemoryService(
         onConflict: "user_id,fingerprint", ignoreDuplicates: true,
       });
       if (error) throw error;
-    } catch {
+    } catch (error) {
       // Memory is best effort; a write failure cannot fail an already-saved skin record.
+      logMemoryFailure("write", error);
     }
   }
 
@@ -84,4 +86,10 @@ function feedbackMemory(product: UsageHistory["products"][number], name: string)
   const details = [rating, product.texture_feedback, ...product.reaction_tags, product.reaction_level !== null && product.reaction_level >= 2 ? "有不适" : ""]
     .filter(Boolean).join("、");
   return details ? `产品体验：${name}：${details}。` : "";
+}
+
+function logMemoryFailure(stage: "read" | "write", error: unknown) {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string"
+    ? error.code.slice(0, 32) : "UNKNOWN";
+  console.error("[personal-memory]", { stage, code });
 }
