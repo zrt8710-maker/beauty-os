@@ -84,7 +84,7 @@ describe("Supabase session refresh 与页面保护", () => {
     );
   });
 
-  it("未登录访问受保护 /app 时跳转到登录页", async () => {
+  it("lets the protected server layout reject an unauthenticated /app request", async () => {
     mocks.createServerClient.mockReturnValue({
       auth: {
         getClaims: vi.fn().mockResolvedValue({ data: null, error: null }),
@@ -95,10 +95,8 @@ describe("Supabase session refresh 与页面保护", () => {
       new NextRequest("http://localhost:3000/app?tab=today"),
     );
 
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "http://localhost:3000/login?next=%2Fapp%3Ftab%3Dtoday",
-    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
   });
 
   it("forwards ordinary requests without overriding the Cookie header", async () => {
@@ -116,10 +114,10 @@ describe("Supabase session refresh 与页面保护", () => {
     expect(response.headers.get("x-middleware-override-headers")).toBeNull();
   });
 
-  it("malformed session never crashes the proxy and is treated as unauthenticated", async () => {
+  it("malformed session never crashes the proxy; server routes still verify access", async () => {
     mocks.createServerClient.mockReturnValue({ auth: { getClaims: vi.fn().mockRejectedValue(new TypeError("Cannot read properties of null (reading 'split')")) } });
     const response = await updateSession(new NextRequest("http://localhost:3000/app"));
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("http://localhost:3000/login?next=%2Fapp");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
   });
 });
