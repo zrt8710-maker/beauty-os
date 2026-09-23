@@ -11,6 +11,8 @@ export function GET(request: NextRequest) {
       second: request.cookies.get("bo_transport_1")?.value === testValue,
       headerFirst: rawCookieHeader.includes("bo_transport_0="),
       headerSecond: rawCookieHeader.includes("bo_transport_1="),
+      headerSecondComplete: rawCookieHeader.includes(`bo_transport_1=${testValue}`),
+      parsedSecondLength: request.cookies.get("bo_transport_1")?.value.length ?? 0,
     });
     response.headers.set("Cache-Control", "no-store");
     return response;
