@@ -72,7 +72,7 @@ export function TodayRoutine({ initialRoutine = null, initialRoutines = [], init
     {!activeRoutine ? <NoRoutineState busy={busy} context={context} hasSavedRoutine={Object.keys(routines).length > 0} onGenerate={() => generate(false)} period={period} message={message} /> : <div key={revealVersion} className={`space-y-7 ${revealVersion ? "beauty-routine-reveal" : ""}`}>
       <CareConclusion model={model} />
       {model?.restrictions.length ? <Restrictions restrictions={model.restrictions} /> : null}
-      <RoutineSteps busy={busy} onGenerate={() => generate(false)} onForceGenerate={() => generate(true)} period={period} steps={model?.steps ?? []} />
+      <RoutineSteps busy={busy} onRegenerate={() => generate(true)} period={period} steps={model?.steps ?? []} />
       <TodayNotUsing excludedProducts={userFacingExcludedProducts(activeRoutine)} />
       <UnmetNeeds needs={model?.unresolvedNeeds ?? []} />
       <FeedbackEntry recorded={feedbackRoutineIds.has(activeRoutine.id)} routine={activeRoutine} />
@@ -146,17 +146,13 @@ function PurposeOmissions({ omissions }: { omissions: TodayPurposeOmission[] }) 
 
 function Restrictions({ restrictions }: { restrictions: string[] }) { return <section className="beauty-routine-section"><p className="text-sm font-semibold text-warning">今天先少做什么</p><ul className="mt-3 max-w-[68ch] space-y-2 text-sm leading-6 text-muted-foreground">{restrictions.map((restriction) => <li className="flex gap-3" key={restriction}><span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-lavender" />{restriction}</li>)}</ul></section>; }
 
-function RoutineSteps({ busy, onGenerate, onForceGenerate, period, steps }: { busy: boolean; onGenerate: () => void; onForceGenerate: () => void; period: RoutinePeriod; steps: TodayExplanationStep[] }) {
+function RoutineSteps({ busy, onRegenerate, period, steps }: { busy: boolean; onRegenerate: () => void; period: RoutinePeriod; steps: TodayExplanationStep[] }) {
   return (
     <section className="py-1" aria-busy={busy}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div><p className={`beauty-meta ${period === "am" ? "text-am-foreground" : "text-pm-foreground"}`}>护理顺序</p><h2 className="beauty-section-title mt-1">{period === "am" ? "早间方案" : "晚间方案"}</h2></div>
-        <div className="flex flex-wrap gap-2">
-          <Button disabled={busy} onClick={onGenerate} type="button" variant="outline">{busy ? "处理中…" : "检查并更新"}</Button>
-          <Button disabled={busy} onClick={onForceGenerate} type="button" variant="ghost">完整重新生成</Button>
-        </div>
+        <Button disabled={busy} onClick={onRegenerate} type="button" variant="outline">{busy ? "处理中…" : "重新生成"}</Button>
       </div>
-      <p className="mt-2 text-xs leading-5 text-muted-foreground">检查并更新：先核对今天的状态，仍适合就沿用现有方案。完整重新生成：跳过沿用，重新生成一版，通常更慢；结果不一定不同。</p>
       {steps.length ? <ol className="beauty-routine-trail mt-6">{steps.map((step) => (
         <li className="beauty-routine-step grid grid-cols-[32px_minmax(0,1fr)] gap-3 sm:gap-5" key={step.id}>
           <span className="flex size-8 items-center justify-center rounded-full border border-selected-border bg-selected text-sm font-semibold text-selected-foreground">{step.order}</span>

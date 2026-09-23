@@ -18,8 +18,8 @@ describe("Today user-facing experience", () => {
     expect(todayGenerateRequestBody("pm", true)).toEqual({ period: "pm", forceRegenerate: true });
     const source = readFileSync(fileURLToPath(new URL("../../../src/features/today/today-routine.tsx", import.meta.url)), "utf8");
     expect(source).toContain("onGenerate={() => generate(false)}");
-    expect(source).toContain("onForceGenerate={() => generate(true)}");
-    expect(source).toContain("<RoutineSteps busy={busy} onGenerate={() => generate(false)}");
+    expect(source).toContain("<RoutineSteps busy={busy} onRegenerate={() => generate(true)}");
+    expect(source).not.toContain("<RoutineSteps busy={busy} onGenerate={() => generate(false)}");
     expect(source).not.toContain("onGenerate={() => generate(true)}");
   });
 
@@ -237,8 +237,8 @@ describe("Today user-facing experience", () => {
     const html = renderToStaticMarkup(createElement(TodayRoutine, { initialRoutines: [routine], context: { skinStatus: "已记录", environment: "成都" } }));
     expect(html).toContain("晚间方案");
     expect(html).toContain("重新生成");
-    expect(html).toContain("检查并更新");
-    expect(html).toContain("完整重新生成");
+    expect(html).not.toContain("检查并更新");
+    expect(html).not.toContain("完整重新生成");
     expect(html).not.toContain("先记录今天皮肤状态，再生成今日方案");
   });
 
