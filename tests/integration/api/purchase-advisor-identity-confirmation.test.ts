@@ -49,7 +49,7 @@ describe("Purchase Advisor external identity confirmation", () => {
       discovery_metadata: { confidence: 82, aliases: ["黑皮气垫"], sources: [], uncertainties: [] },
       reconciliation_context: { original_brand_name: "圣罗兰", original_product_name: "黑皮气垫" },
     });
-    mocks.findOrCreate.mockResolvedValue(catalogProductId);
+    mocks.findOrCreate.mockResolvedValue({ catalogProductId, created: true });
     mocks.findVerifiedProduct.mockResolvedValue({ id: catalogProductId });
   });
 

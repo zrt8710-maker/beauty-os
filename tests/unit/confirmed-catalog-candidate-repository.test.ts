@@ -14,7 +14,7 @@ describe("confirmed Catalog candidate lifecycle", () => {
     const findByIdentity = vi.fn(async () => [catalog("existing-catalog-id")]);
     const repository = createConfirmedCatalogCandidateRepository(catalogClient([], insert) as never, { findByIdentity });
 
-    await expect(repository.findOrCreate({ ...candidate, brand_name: "ＢＲＡＮＤ", product_name: "Pro- duct  " })).resolves.toBe("existing-catalog-id");
+    await expect(repository.findOrCreate({ ...candidate, brand_name: "ＢＲＡＮＤ", product_name: "Pro- duct  " })).resolves.toEqual({ catalogProductId: "existing-catalog-id", created: false });
 
     expect(findByIdentity).toHaveBeenCalledWith("brand", "product");
     expect(insert).not.toHaveBeenCalled();
@@ -27,7 +27,7 @@ describe("confirmed Catalog candidate lifecycle", () => {
       { findByIdentity: vi.fn(async () => []) },
     );
 
-    await expect(repository.findOrCreate({ ...candidate, barcode: "12345678" })).resolves.toBe("barcode-catalog-id");
+    await expect(repository.findOrCreate({ ...candidate, barcode: "12345678" })).resolves.toEqual({ catalogProductId: "barcode-catalog-id", created: false });
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -39,9 +39,19 @@ describe("confirmed Catalog candidate lifecycle", () => {
       { findByIdentity: vi.fn(async () => []) },
     );
 
-    await expect(repository.findOrCreate(candidate)).resolves.toBe("new-catalog-id");
+    await expect(repository.findOrCreate(candidate)).resolves.toEqual({ catalogProductId: "new-catalog-id", created: true });
     expect(insert).toHaveBeenCalledWith({ ...candidate, status: "candidate" });
     expect(insert).not.toHaveBeenCalledWith(expect.objectContaining({ status: "verified" }));
+  });
+
+  it("reports a concurrent insertion as reuse, so research can be deduplicated by Catalog ID", async () => {
+    const insert = vi.fn().mockReturnValue({ select: () => ({ single: async () => ({ data: null, error: { code: "23505" } }) }) });
+    const findByIdentity = vi.fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([catalog("concurrent-catalog-id")]);
+    const repository = createConfirmedCatalogCandidateRepository(catalogClient([], insert) as never, { findByIdentity });
+
+    await expect(repository.findOrCreate(candidate)).resolves.toEqual({ catalogProductId: "concurrent-catalog-id", created: false });
   });
 
   it("does not reuse a canonical match with a conflicting variant", async () => {
@@ -51,7 +61,7 @@ describe("confirmed Catalog candidate lifecycle", () => {
       { findByIdentity: vi.fn(async () => [catalog("existing", "30 ml")]) },
     );
 
-    await expect(repository.findOrCreate({ ...candidate, variant_name: "50 ml", variant_evidence: "packaging_observed" })).resolves.toBe("new");
+    await expect(repository.findOrCreate({ ...candidate, variant_name: "50 ml", variant_evidence: "packaging_observed" })).resolves.toEqual({ catalogProductId: "new", created: true });
     expect(insert).toHaveBeenCalled();
   });
 
@@ -62,7 +72,7 @@ describe("confirmed Catalog candidate lifecycle", () => {
       { findByIdentity: vi.fn(async () => [catalog("canonical", null)]) },
     );
 
-    await expect(repository.findOrCreate({ ...candidate, variant_name: "6.0舒缓版" })).resolves.toBe("canonical");
+    await expect(repository.findOrCreate({ ...candidate, variant_name: "6.0舒缓版" })).resolves.toEqual({ catalogProductId: "canonical", created: false });
     expect(insert).not.toHaveBeenCalled();
   });
 
@@ -82,7 +92,7 @@ describe("confirmed Catalog candidate lifecycle", () => {
     const findByIdentity = vi.fn(async () => []);
     const repository = createConfirmedCatalogCandidateRepository(catalogClient([], insert) as never, { findByIdentity });
 
-    await expect(repository.findOrCreate({ ...candidate, product_name: "Different Product" })).resolves.toBe("new");
+    await expect(repository.findOrCreate({ ...candidate, product_name: "Different Product" })).resolves.toEqual({ catalogProductId: "new", created: true });
     expect(findByIdentity).toHaveBeenCalledWith("brand", "differentproduct");
     expect(insert).toHaveBeenCalled();
   });
@@ -96,7 +106,7 @@ describe("confirmed Catalog candidate lifecycle", () => {
     });
 
     await expect(repository.findOrCreate({ ...candidate, brand_name: "珀莱雅", product_name: "双抗精华" }))
-      .resolves.toBe(existing.id);
+      .resolves.toEqual({ catalogProductId: existing.id, created: false });
     expect(insert).not.toHaveBeenCalled();
   });
 

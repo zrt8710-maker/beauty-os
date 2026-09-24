@@ -7,6 +7,7 @@ import { InvalidRecognitionConfirmationTokenError } from "@/server/product-recog
 import { createOwnedProductWithIdentitySchema } from "@/schemas/product-identity";
 import { getCurrentUser } from "@/server/auth/get-current-user";
 import { createCatalogIdentityRepository } from "@/server/repositories/catalog-identity-repository";
+import { createCatalogProductResearchJobRepository } from "@/server/repositories/catalog-product-research-job-repository";
 import { createOwnedProductIdentityRepository } from "@/server/repositories/owned-product-identity-repository";
 import {
   CatalogIdentityConfirmationRequiredError,
@@ -71,13 +72,14 @@ export async function POST(request: Request) {
       idempotency_key_present: Boolean(validatedInput.idempotency_key),
     };
     const supabase = createAdminClient();
+    const researchJobs = createCatalogProductResearchJobRepository(supabase);
     const service = createOwnedProductWithIdentityService(
       createProductIdentityMatcher(createCatalogIdentityRepository(supabase)),
       createOwnedProductIdentityRepository(supabase, (event) => timings.push(event)),
       createConfirmedCatalogCandidateRepository(supabase),
-      // Research must run in an independent job. EdgeOne waits for Next `after`
-      // work and times out the otherwise successful asset response at 120s.
-      undefined,
+      async (researchInput) => {
+        await researchJobs.enqueueIfNeeded(researchInput);
+      },
       (event) => timings.push(event),
     );
     const ownedProduct = await service.create(user.id, validatedInput);

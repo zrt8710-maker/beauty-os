@@ -879,11 +879,14 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function createConfiguredVolcengineAgentPlanProductResearchProvider(): ProductResearchProvider | null {
+export function createConfiguredVolcengineAgentPlanProductResearchProvider(options?: { overallTimeoutMs?: number }): ProductResearchProvider | null {
   const apiKey = process.env.VOLCENGINE_AGENT_PLAN_KEY?.trim();
   const model = process.env.VOLCENGINE_AGENT_PLAN_MODEL?.trim();
   const baseUrl = process.env.VOLCENGINE_AGENT_PLAN_BASE_URL?.trim();
-  return apiKey && model && baseUrl ? createVolcengineAgentPlanProductResearchProvider({ apiKey, model, baseUrl, diagnostics: createDevelopmentAgent3RawDiagnosticCapture() }) : null;
+  return apiKey && model && baseUrl ? createVolcengineAgentPlanProductResearchProvider({
+    apiKey, model, baseUrl, overallTimeoutMs: options?.overallTimeoutMs,
+    diagnostics: createDevelopmentAgent3RawDiagnosticCapture(),
+  }) : null;
 }
 
 async function recordDiagnostic(

@@ -11,6 +11,7 @@ import {
   createConfirmedCatalogCandidateRepository,
 } from "@/server/repositories/confirmed-catalog-candidate-repository";
 import { createKnowledgeRepository } from "@/server/repositories/knowledge-repository";
+import { createCatalogProductResearchJobRepository } from "@/server/repositories/catalog-product-research-job-repository";
 import { durableExternalVariantEvidence } from "@/server/services/create-owned-product-with-identity-service";
 
 const headers = { "Cache-Control": "private, no-store" };
@@ -28,7 +29,8 @@ export async function POST(request: Request) {
       input.confirmation_id,
     );
     const supabase = createAdminClient();
-    const catalogProductId = await createConfirmedCatalogCandidateRepository(supabase).findOrCreate({
+    const variantEvidence = durableExternalVariantEvidence(input.variant_name, input.barcode, confirmed.discovery_metadata);
+    const { catalogProductId, created } = await createConfirmedCatalogCandidateRepository(supabase).findOrCreate({
       brand_name: input.brand_name,
       product_name: input.product_name,
       variant_name: input.variant_name,
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
       confidence: confirmed.discovery_metadata?.confidence ?? 0,
       aliases: confirmed.discovery_metadata?.aliases ?? [],
       product_type: input.product_type,
-      variant_evidence: durableExternalVariantEvidence(input.variant_name, input.barcode, confirmed.discovery_metadata),
+      variant_evidence: variantEvidence,
       original_identity: confirmed.reconciliation_context
         ? {
             brand_name: confirmed.reconciliation_context.original_brand_name,
@@ -44,6 +46,24 @@ export async function POST(request: Request) {
           }
         : null,
     });
+    try {
+      await createCatalogProductResearchJobRepository(supabase).enqueueIfNeeded({
+        catalog_product_id: catalogProductId,
+        brand_name: input.brand_name ?? "Unknown brand",
+        product_name: input.product_name,
+        variant_name: input.variant_name && !variantEvidence ? null : input.variant_name,
+        barcode: input.barcode,
+        aliases: confirmed.discovery_metadata?.aliases ?? [],
+        identity_sources: confirmed.discovery_metadata?.sources ?? [],
+        search_results: [],
+      });
+    } catch (error) {
+      // Confirmation stays successful; the worker's backfill repairs missed work.
+      console.error("PRODUCT_RESEARCH_JOB_ENQUEUE_FAILED", {
+        created,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    }
     const analysisReady = Boolean(await createKnowledgeRepository(supabase).findVerifiedProduct(catalogProductId));
     return NextResponse.json({ data: { catalog_product_id: catalogProductId, analysis_ready: analysisReady } }, { headers });
   } catch (error) {

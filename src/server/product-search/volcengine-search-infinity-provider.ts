@@ -70,6 +70,7 @@ export function createVolcengineSearchInfinityProvider(options: {
 
 export function createConfiguredVolcengineSearchInfinityProvider(options?: {
   onTiming?: (stage: "search_infinity_primary" | "search_infinity_fallback", elapsedMs: number) => void;
+  fetchImpl?: typeof fetch;
 }): ProductSearchProvider | null {
   const apiKey = process.env.VOLCENGINE_AGENT_PLAN_KEY?.trim();
   return apiKey ? createVolcengineSearchInfinityProvider({ apiKey, ...options }) : null;

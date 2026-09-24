@@ -37,7 +37,7 @@ export function createOwnedProductWithIdentityService(
   matcher: ProductIdentityMatcher,
   repository: OwnedProductIdentityRepository,
   confirmedCatalogCandidates?: ConfirmedCatalogCandidateRepository,
-  onCatalogIdentityConfirmed?: (input: ProductResearchInput) => void,
+  onExternalCandidateBound?: (input: ProductResearchInput, created: boolean) => Promise<void>,
   timingReporter?: OwnedProductCreateTimingReporter,
 ): CreateOwnedProductWithIdentityService {
   return {
@@ -92,6 +92,7 @@ export function createOwnedProductWithIdentityService(
       // deliberately separate from the owned-product write and never marks a
       // discovered identity verified.
       let catalogProductId = validated.catalog_product_id;
+      let externalCandidateCreated = false;
       const variantEvidence = validated.resolution_kind === "external"
         ? durableExternalVariantEvidence(
             validated.variant_name,
@@ -107,7 +108,7 @@ export function createOwnedProductWithIdentityService(
       if (validated.resolution_kind === "external" && confirmedCatalogCandidates) {
         const bindingStartedAt = performance.now();
         try {
-          catalogProductId = await confirmedCatalogCandidates.findOrCreate({
+          const resolved = await confirmedCatalogCandidates.findOrCreate({
             brand_name: validated.brand_name,
             product_name: validated.product_name,
             variant_name: validated.variant_name,
@@ -123,6 +124,8 @@ export function createOwnedProductWithIdentityService(
                 }
               : null,
           });
+          catalogProductId = resolved.catalogProductId;
+          externalCandidateCreated = resolved.created;
         } finally {
           timingReporter?.({ stage: "external_catalog_binding", elapsed_ms: Math.round(performance.now() - bindingStartedAt) });
         }
@@ -138,23 +141,26 @@ export function createOwnedProductWithIdentityService(
         catalog_product_id: catalogProductId,
         subcategory: PRODUCT_TYPE_META[validated.product_type].subcategory,
       });
-      if (catalogProductId && validated.resolution_kind === "external" && onCatalogIdentityConfirmed) {
-        // Existing Catalog products need only a private asset link. Research is
-        // reserved for identities discovered outside the Catalog.
-        const metadata = discoveryMetadata;
+      if (catalogProductId && validated.resolution_kind === "external" && onExternalCandidateBound) {
+        // This only registers durable Catalog-scoped work. The user never waits
+        // for Agent3, and Internal Catalog matches never reach this branch.
         try {
-          onCatalogIdentityConfirmed({
+          await onExternalCandidateBound({
             catalog_product_id: catalogProductId,
             brand_name: validated.brand_name ?? "Unknown brand",
             product_name: validated.product_name,
             variant_name: durableVariantName,
             barcode: validated.barcode,
-            aliases: metadata?.aliases ?? [],
-            identity_sources: metadata?.sources ?? [],
+            aliases: discoveryMetadata?.aliases ?? [],
+            identity_sources: discoveryMetadata?.sources ?? [],
             search_results: [],
+          }, externalCandidateCreated);
+        } catch (error) {
+          // A periodic backfill repairs a missed enqueue after the asset save.
+          console.error("PRODUCT_RESEARCH_JOB_ENQUEUE_FAILED", {
+            created: externalCandidateCreated,
+            error: error instanceof Error ? error.message : "unknown",
           });
-        } catch {
-          // Scheduling must never make User Asset creation fail.
         }
       }
       return resolveOwnedProductImage(toOwnedProduct(row), []);

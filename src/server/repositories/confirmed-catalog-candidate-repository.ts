@@ -26,7 +26,7 @@ export type ConfirmedCatalogCandidate = {
 };
 
 export type ConfirmedCatalogCandidateRepository = {
-  findOrCreate(candidate: ConfirmedCatalogCandidate): Promise<string>;
+  findOrCreate(candidate: ConfirmedCatalogCandidate): Promise<{ catalogProductId: string; created: boolean }>;
 };
 
 export class CatalogVariantConfirmationRequiredError extends Error {
@@ -56,7 +56,7 @@ export function createConfirmedCatalogCandidateRepository(
   return {
     async findOrCreate(candidate) {
       const existing = await findExisting(supabase, identities, candidate);
-      if (existing) return existing;
+      if (existing) return { catalogProductId: existing, created: false };
 
       // The candidate-only columns are nullable by migration. Keep this cast
       // local until generated Supabase types are refreshed after migration.
@@ -70,11 +70,11 @@ export function createConfirmedCatalogCandidateRepository(
         confidence: candidate.confidence,
         status: "candidate",
       }).select("id").single();
-      if (!error && data) return data.id;
+      if (!error && data) return { catalogProductId: data.id, created: true };
 
       // A concurrent confirmation may have inserted the exact candidate.
       const concurrent = await findExisting(supabase, identities, candidate);
-      if (concurrent) return concurrent;
+      if (concurrent) return { catalogProductId: concurrent, created: false };
       throw new Error("CONFIRMED_CATALOG_CANDIDATE_WRITE_FAILED", { cause: error });
     },
   };

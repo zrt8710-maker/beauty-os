@@ -1197,6 +1197,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      backfill_catalog_product_research_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
+      claim_catalog_product_research_job: {
+        Args: Record<PropertyKey, never>
+        Returns: { catalog_product_id: string; lease_token: string; attempts: number; research_input: Json | null }[]
+      }
+      enqueue_catalog_product_research_job: {
+        Args: { p_catalog_product_id: string; p_research_input?: Json | null }
+        Returns: boolean
+      }
+      finish_catalog_product_research_job: {
+        Args: {
+          p_catalog_product_id: string
+          p_lease_token: string
+          p_result: string
+          p_error?: string | null
+        }
+        Returns: boolean
+      }
       apply_catalog_seed_v01: {
         Args: { p_input: Json }
         Returns: Json

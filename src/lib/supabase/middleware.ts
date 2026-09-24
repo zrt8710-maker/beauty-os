@@ -8,7 +8,7 @@ import { proxyRealtime } from "@/lib/supabase/proxy-realtime";
 export async function updateSession(request: NextRequest) {
   // Signing in must remain possible even when an existing session cannot refresh.
   // Protected pages verify claims in their server layout and API handlers.
-  if (["/login", "/auth/verify-otp", "/auth/callback"].includes(request.nextUrl.pathname)) {
+  if (["/login", "/auth/verify-otp", "/auth/callback", "/api/internal/product-research"].includes(request.nextUrl.pathname)) {
     return NextResponse.next();
   }
 

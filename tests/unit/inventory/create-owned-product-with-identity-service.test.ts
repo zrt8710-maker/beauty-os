@@ -94,7 +94,7 @@ function setup() {
     create: vi.fn().mockResolvedValue(linkedRow),
   };
   const confirmedCatalogCandidates: ConfirmedCatalogCandidateRepository = {
-    findOrCreate: vi.fn().mockResolvedValue(catalogId),
+    findOrCreate: vi.fn().mockResolvedValue({ catalogProductId: catalogId, created: true }),
   };
   return {
     matcher,
@@ -175,8 +175,9 @@ describe("CreateOwnedProductWithIdentity", () => {
       catalog_product_id: catalogId,
       brand_name: "CeraVe",
       product_name: "Daily-SPF",
-    }));
+    }), true);
     expect(repository.create).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(repository.create).mock.invocationCallOrder[0]).toBeLessThan(schedule.mock.invocationCallOrder[0]!);
   });
 
   it("persists a confirmed external identity without requiring a catalog match", async () => {

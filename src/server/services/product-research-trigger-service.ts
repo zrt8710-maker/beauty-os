@@ -59,6 +59,8 @@ export function createProductResearchTriggerService(dependencies: {
   knowledge: KnowledgeRepository;
   model: string | null;
   searchProvider?: ProductSearchProvider | null;
+  automaticRunLimit?: 1 | 2;
+  transientProviderAttempts?: 1 | 2;
 }): ProductResearchTriggerService {
   const draftService = createProductResearchDraftService(dependencies.drafts);
   const completed = new Set<string>();
@@ -118,7 +120,7 @@ export function createProductResearchTriggerService(dependencies: {
           return "existing_draft";
         }
         const classifierContextInput = withExistingResearchIdentityContext(input, effective);
-        const runLimit = isExplicitRerun ? 1 : MAX_AUTOMATIC_ENRICHMENT_RUNS;
+        const runLimit = isExplicitRerun ? 1 : (dependencies.automaticRunLimit ?? MAX_AUTOMATIC_ENRICHMENT_RUNS);
         for (let run = 0; run < runLimit; run += 1) {
           const enrichmentFocus = missingProductResearchSections(effective);
           const researchMode = !effective || (isExplicitRerun && enrichmentFocus.length === 0)
@@ -134,7 +136,9 @@ export function createProductResearchTriggerService(dependencies: {
             },
             dependencies.searchProvider,
           );
-          const providerResult = await researchWithTransientRetry(dependencies.provider, researchInput);
+          const providerResult = await researchWithTransientRetry(
+            dependencies.provider, researchInput, dependencies.transientProviderAttempts ?? MAX_TRANSIENT_PROVIDER_ATTEMPTS,
+          );
           diagnosticId = getAgent3DiagnosticId(providerResult);
           const result = buildProductResearchDraftResult(researchInput, providerResult);
           if (!hasMeaningfulProductResearchContent(result)) {
@@ -262,14 +266,15 @@ function withExistingResearchIdentityContext(
 async function researchWithTransientRetry(
   provider: ProductResearchProvider,
   input: ProductResearchInput,
+  maxAttempts: number,
 ) {
   let lastError: unknown;
-  for (let attempt = 0; attempt < MAX_TRANSIENT_PROVIDER_ATTEMPTS; attempt += 1) {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {
       return await provider.research(input);
     } catch (error) {
       lastError = error;
-      if (attempt + 1 >= MAX_TRANSIENT_PROVIDER_ATTEMPTS || !isTransientProviderFailure(error)) throw error;
+      if (attempt + 1 >= maxAttempts || !isTransientProviderFailure(error)) throw error;
       agent3Debug("provider_retry", {
         catalog_product_id_present: true,
         attempt: attempt + 2,
