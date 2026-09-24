@@ -36,7 +36,7 @@ export function LoginForm() {
           邮箱
         </label>
         <input
-          aria-describedby={emailError ? "email-help email-error" : "email-help"}
+          aria-describedby={emailError ? "email-error" : undefined}
           aria-invalid={Boolean(emailError)}
           autoComplete="email"
           className="beauty-field beauty-login-input"
@@ -58,7 +58,6 @@ export function LoginForm() {
         ) : null}
       </div>
 
-      <p id="email-help" className="text-xs leading-6 text-secondary-foreground">无需密码，我们会向你的邮箱发送验证码。</p>
       <Button className="beauty-login-submit h-12 w-full" disabled={sending || (sent && cooldown > 0)} type="submit">
         <span>{sending ? "正在发送…" : sent ? cooldown > 0 ? `${cooldown} 秒后可重新发送` : "重新发送验证码" : "获取验证码"}</span>
         <svg className="beauty-login-action-icon" data-pending={sending} aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">

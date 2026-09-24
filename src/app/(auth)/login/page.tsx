@@ -25,9 +25,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <header className="beauty-login-intro">
           <p className="beauty-login-prelude"><span>留一点时间，照顾自己</span></p>
           <h1 id="login-heading" className="beauty-login-heading"><span>欢迎回来</span></h1>
-          <p className="mt-4 text-sm leading-7 text-secondary-foreground">
-            从今天的皮肤感受，继续你的护理日常。
-          </p>
         </header>
 
         {error && errorMessages[error] ? (
@@ -36,10 +33,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           </p>
         ) : null}
 
-        <div className="beauty-login-form-wrap mt-7">
+        <div className="beauty-login-form-wrap mt-6">
           <LoginForm />
         </div>
-        <p className="beauty-login-footnote">你的记录，你的节奏。</p>
       </section>
     </LoginScene>
   );

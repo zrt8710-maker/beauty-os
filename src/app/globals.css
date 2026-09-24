@@ -885,20 +885,9 @@
   }
   .beauty-login-wordmark,
   .beauty-login-intro,
-  .beauty-login-form-wrap,
-  .beauty-login-footnote { animation: beauty-login-enter 260ms var(--ease-out) both; }
+  .beauty-login-form-wrap { animation: beauty-login-enter 260ms var(--ease-out) both; }
   .beauty-login-intro { animation-delay: 40ms; }
   .beauty-login-form-wrap { animation-delay: 80ms; }
-  .beauty-login-footnote { animation-delay: 120ms; }
-
-  .beauty-login-footnote {
-    margin-top: 28px;
-    text-align: center;
-    font-size: 12px;
-    letter-spacing: .08em;
-    text-indent: .08em;
-    color: var(--brand-deep);
-  }
 
   .beauty-nav-item {
     transition-property: color, background-color, border-color, transform;
@@ -1025,7 +1014,6 @@
   .beauty-login-wordmark,
   .beauty-login-intro,
   .beauty-login-form-wrap,
-  .beauty-login-footnote,
   .beauty-login-retreat::before { animation: none !important; transform: none; }
   .beauty-routine-reveal > .beauty-care-brief,
   .beauty-routine-reveal .beauty-routine-step { animation: none !important; }
