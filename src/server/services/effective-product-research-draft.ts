@@ -54,22 +54,91 @@ export function hasCompleteEnoughProductResearch(draft: ProductResearchDraft | n
 function inheritMissingSections(current: Payload, older: Payload): Payload {
   const output = structuredClone(current);
   if (!sectionConflicted(output, "ingredients")) {
-    if (sectionUsable(output, "ingredients") && sectionUsable(older, "ingredients")) mergeIngredients(output, older);
-    else if (!sectionUsable(output, "ingredients") && sectionUsable(older, "ingredients")) copySection(output, older, "ingredients");
+    if (hasIngredientFacts(output) && hasIngredientFacts(older)) mergeIngredients(output, older);
+    else if (!hasIngredientFacts(output) && hasIngredientFacts(older)) copySection(output, older, "ingredients");
   }
   if (!sectionConflicted(output, "claims")) {
-    if (sectionUsable(output, "claims") && sectionUsable(older, "claims")) mergeClaims(output, older);
-    else if (!sectionUsable(output, "claims") && sectionUsable(older, "claims")) copySection(output, older, "claims");
+    if (hasClaimFacts(output) && hasClaimFacts(older)) mergeClaims(output, older);
+    else if (!hasClaimFacts(output) && hasClaimFacts(older)) copySection(output, older, "claims");
   }
   if (!sectionConflicted(output, "usage")) {
-    if (fieldUsable(output, "usage") && fieldUsable(older, "usage")) mergeUsage(output, older);
-    else if (!fieldUsable(output, "usage") && fieldUsable(older, "usage")) copySection(output, older, "usage");
+    if (hasUsageFacts(output) && hasUsageFacts(older)) mergeUsage(output, older);
+    else if (!hasUsageFacts(output) && hasUsageFacts(older)) copySection(output, older, "usage");
   }
-  for (const section of ["texture", "product_type"] as const) {
-    if (!sectionUsable(output, section) && !sectionConflicted(output, section) && sectionUsable(older, section)) copySection(output, older, section);
-  }
+  if (!output.texture && !sectionConflicted(output, "texture") && older.texture) copySection(output, older, "texture");
+  if (output.product_type.value === null && !sectionConflicted(output, "product_type")
+    && older.product_type.value !== null) copySection(output, older, "product_type");
+  mergeInterpretationCandidates(output, older);
   output.sources = deduplicateSources([...output.sources, ...older.sources]);
   return output;
+}
+
+function hasIngredientFacts(payload: Payload) {
+  return payload.ingredients.items.length > 0 || payload.ingredients.raw_text.length > 0;
+}
+
+function hasClaimFacts(payload: Payload) {
+  return payload.claims.length > 0;
+}
+
+function hasUsageFacts(payload: Payload) {
+  const usage = payload.usage;
+  return usage.instructions.length > 0 || usage.cautions.length > 0 || usage.am_pm.length > 0
+    || usage.frequency !== null || usage.routine_order !== null
+    || usage.leave_on !== null || usage.rinse_off !== null;
+}
+
+function mergeInterpretationCandidates(target: Payload, source: Payload) {
+  target.care_role_candidates = mergeByKey(
+    target.care_role_candidates,
+    source.care_role_candidates,
+    (item) => item.code,
+  );
+  target.capability_candidates = mergeByKey(
+    target.capability_candidates,
+    source.capability_candidates,
+    (item) => item.code,
+  );
+  target.risk_cautions = mergeByKey(
+    target.risk_cautions,
+    source.risk_cautions,
+    (item) => `${normalizeFact(item.code_or_label)}:${normalizeFact(item.description)}`,
+  );
+  if (source.care_role_candidates.length > 0) {
+    target.field_confidence.care_role = mergeConfidence(
+      target.field_confidence.care_role,
+      source.field_confidence.care_role,
+    );
+  }
+  if (source.capability_candidates.length > 0) {
+    target.field_confidence.capability = mergeConfidence(
+      target.field_confidence.capability,
+      source.field_confidence.capability,
+    );
+  }
+  if (source.risk_cautions.length > 0) {
+    target.field_confidence.risk = mergeConfidence(
+      target.field_confidence.risk,
+      source.field_confidence.risk,
+    );
+  }
+}
+
+function mergeByKey<T extends { evidence_refs: string[]; confidence: number | null }>(
+  current: T[],
+  older: T[],
+  key: (item: T) => string,
+) {
+  const merged = structuredClone(current);
+  for (const item of older) {
+    const existing = merged.find((candidate) => key(candidate) === key(item));
+    if (!existing) merged.push(structuredClone(item));
+    else {
+      existing.evidence_refs = [...new Set([...existing.evidence_refs, ...item.evidence_refs])];
+      existing.confidence = maxNullable(existing.confidence, item.confidence);
+    }
+  }
+  return merged;
 }
 
 function mergeIngredients(target: Payload, source: Payload) {

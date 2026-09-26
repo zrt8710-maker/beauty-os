@@ -164,6 +164,49 @@ describe("effective Product Research draft", () => {
     expect(effective?.research_payload.usage.frequency).toBe("daily");
   });
 
+  it("preserves source-backed partial facts and interpretation candidates below the planner threshold", () => {
+    const lowConfidence = { score: 55, evidence_refs: ["source_1"], reasons: [], has_conflict: false, includes_ai_inference: false };
+    const earlierBase = snapshot(1);
+    const earlier = snapshot(1, {
+      ingredients: { ...earlierBase.research_payload.ingredients, status: "partial", confidence: 55 },
+      claims: [{ raw_text: "Earlier supported claim", normalized_claim: "较早的有来源功效", confidence: 55, evidence_refs: ["source_1"] }],
+      usage: { ...earlierBase.research_payload.usage, confidence: 55 },
+      care_role_candidates: [{ code: "moisturizer", confidence: 55, basis: "ai_inference", evidence_refs: ["source_1"] }],
+      capability_candidates: [{ code: "hydration", confidence: 55, basis: "ai_inference", evidence_refs: ["source_1"] }],
+      risk_cautions: [{ code_or_label: "产品使用注意事项", description: "避免接触眼睛", confidence: 55, basis: "external_evidence", evidence_refs: ["source_1"] }],
+      field_confidence: {
+        ...earlierBase.research_payload.field_confidence,
+        ingredients: lowConfidence, claims: lowConfidence, usage: lowConfidence,
+        care_role: lowConfidence, capability: lowConfidence, risk: lowConfidence,
+      },
+    });
+    const newerBase = snapshot(2);
+    const newer = snapshot(2, {
+      ingredients: { ...newerBase.research_payload.ingredients, status: "partial", items: [], raw_text: [], confidence: 0 },
+      claims: [],
+      usage: { instructions: [], am_pm: [], frequency: null, routine_order: null, leave_on: null, rinse_off: null, cautions: [], confidence: 0, evidence_refs: [] },
+      care_role_candidates: [], capability_candidates: [], risk_cautions: [],
+      field_confidence: {
+        ...newerBase.research_payload.field_confidence,
+        ingredients: { ...lowConfidence, score: 0, evidence_refs: [] },
+        claims: { ...lowConfidence, score: 0, evidence_refs: [] },
+        usage: { ...lowConfidence, score: 0, evidence_refs: [] },
+        care_role: { ...lowConfidence, score: 0, evidence_refs: [] },
+        capability: { ...lowConfidence, score: 0, evidence_refs: [] },
+        risk: { ...lowConfidence, score: 0, evidence_refs: [] },
+      },
+    });
+
+    const effective = effectiveProductResearchDraft([newer, earlier]);
+
+    expect(effective?.research_payload.ingredients.items).toHaveLength(1);
+    expect(effective?.research_payload.claims).toHaveLength(1);
+    expect(effective?.research_payload.usage.instructions).toEqual(["Apply after cleansing"]);
+    expect(effective?.research_payload.care_role_candidates).toHaveLength(1);
+    expect(effective?.research_payload.capability_candidates).toHaveLength(1);
+    expect(effective?.research_payload.risk_cautions).toHaveLength(1);
+  });
+
   it("allows an explicit supported conflict to prevent inheritance of prior claims", () => {
     const earlier = snapshot(1);
     const newerBase = snapshot(2);
