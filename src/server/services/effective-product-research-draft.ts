@@ -200,7 +200,10 @@ function sectionUsable(payload: Payload, section: ProductResearchEnrichmentSecti
   // not make such otherwise complete drafts rerun Agent3 indefinitely.
   if (section === "reliable_sources") return payload.sources.some(isReliableResearchSource);
   if (section === "ingredients") {
-    return (payload.ingredients.status === "found" || payload.ingredients.status === "partial")
+    // Partial ingredients remain usable evidence, but they are not an
+    // enrichment stop signal. Keep asking Agent3 for the complete, exact-SKU
+    // ingredient list in a later durable worker round.
+    return payload.ingredients.status === "found"
       && payload.ingredients.items.length > 0
       && payload.ingredients.conflicts.length === 0;
   }

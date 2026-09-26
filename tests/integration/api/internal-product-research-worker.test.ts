@@ -60,18 +60,26 @@ describe("Product Research Worker result mapping", () => {
 
   afterEach(() => vi.unstubAllEnvs());
 
-  it("completes partial research only after a usable draft is persisted, without repeating research", async () => {
+  it("continues a usable partial draft in a later durable worker round", async () => {
     const usableDraft = { id: "draft-1", status: "draft" };
     mocks.trigger.mockResolvedValue("partial");
     mocks.getLatestUsableDraft.mockResolvedValueOnce(null).mockResolvedValueOnce(usableDraft);
-    mocks.claim.mockResolvedValueOnce(job()).mockResolvedValueOnce(null);
 
     expect((await POST(request())).status).toBe(200);
     expect(mocks.getLatestUsableDraft).toHaveBeenCalledTimes(2);
-    expect(mocks.finish).toHaveBeenCalledWith(job(), "completed", null);
-    expect(await (await POST(request())).json()).toEqual({ status: "idle" });
+    expect(mocks.finish).toHaveBeenCalledWith(job(), "retry", "partial");
     expect(mocks.trigger).toHaveBeenCalledTimes(1);
     expect(mocks.createDrafts).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the usable partial draft and completes the job at the durable attempt limit", async () => {
+    const lastAttempt = job(4);
+    mocks.claim.mockResolvedValue(lastAttempt);
+    mocks.trigger.mockResolvedValue("partial");
+    mocks.getLatestUsableDraft.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "draft-1", status: "draft" });
+
+    expect(await (await POST(request())).json()).toEqual({ status: "completed" });
+    expect(mocks.finish).toHaveBeenCalledWith(lastAttempt, "completed", null);
   });
 
   it("retries partial research when no usable draft exists", async () => {
@@ -88,6 +96,14 @@ describe("Product Research Worker result mapping", () => {
     expect(await (await POST(request())).json()).toEqual({ status: "completed" });
     expect(mocks.getLatestUsableDraft).toHaveBeenCalledTimes(1);
     expect(mocks.finish).toHaveBeenCalledWith(job(), "completed", null);
+  });
+
+  it("does not skip gap-targeted enrichment merely because an incomplete usable draft already exists", async () => {
+    mocks.getLatestUsableDraft.mockResolvedValue({ id: "draft-1", status: "draft" });
+    mocks.trigger.mockResolvedValue("started");
+
+    expect(await (await POST(request())).json()).toEqual({ status: "completed" });
+    expect(mocks.trigger).toHaveBeenCalledTimes(1);
   });
 
   it("preserves the retry outcome through the fourth claim when no draft is usable", async () => {

@@ -16,6 +16,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 const headers = { "Cache-Control": "private, no-store" };
+const MAX_DURABLE_RESEARCH_ATTEMPTS = 4;
 
 function authorized(request: Request) {
   const expected = process.env.PRODUCT_RESEARCH_WORKER_SECRET?.trim();
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
       const product = await createCatalogIdentityRepository(supabase).findById(job.catalogProductId);
       const drafts = createProductResearchDraftRepository(supabase);
       const existing = await drafts.getLatestUsableDraft(job.catalogProductId);
-      if (!product || product.status !== "candidate" || (job.attempts === 1 && existing)
+      if (!product || product.status !== "candidate"
         || hasCompleteEnoughProductResearch(existing)) {
         outcome = "completed";
       } else {
@@ -73,9 +74,15 @@ export async function POST(request: Request) {
           search_results: [],
         });
         const usablePartial = result === "partial"
-          && await drafts.getLatestUsableDraft(job.catalogProductId) !== null;
-        outcome = result === "started" || result === "existing_draft" || result === "verified_knowledge" || usablePartial
-          ? "completed" : "retry";
+          ? await drafts.getLatestUsableDraft(job.catalogProductId)
+          : null;
+        const partialNeedsAnotherRound = usablePartial !== null
+          && !hasCompleteEnoughProductResearch(usablePartial)
+          && job.attempts < MAX_DURABLE_RESEARCH_ATTEMPTS;
+        outcome = result === "started" || result === "existing_draft" || result === "verified_knowledge"
+          || (usablePartial !== null && !partialNeedsAnotherRound)
+          ? "completed"
+          : "retry";
         reason = outcome === "retry" ? result : null;
       }
     } catch (error) {

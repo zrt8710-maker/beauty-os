@@ -71,6 +71,19 @@ describe("effective Product Research draft", () => {
     expect(missingProductResearchSections(effective)).toContain("ingredients");
   });
 
+  it("keeps partial ingredient evidence usable while continuing to request full ingredients", () => {
+    const draft = snapshot(1, {
+      ingredients: {
+        ...snapshot(1).research_payload.ingredients,
+        status: "partial",
+      },
+    });
+
+    expect(draft.research_payload.ingredients.items).toHaveLength(1);
+    expect(missingProductResearchSections(draft)).toContain("ingredients");
+    expect(hasCompleteEnoughProductResearch(draft)).toBe(false);
+  });
+
   it("treats complete source-backed research as complete when auditable metadata has no public URL", () => {
     const draft = snapshot(1, {
       sources: [{
