@@ -18,6 +18,7 @@ import {
   DEFAULT_INVENTORY_ADD_STATUS,
   externalIdentityToLookupCandidate,
   identityResolutionContinuation,
+  nextProductImageSource,
   pendingAssetFallbackForResolution,
   recognitionToLookupResponse,
   resolveInventoryProductType,
@@ -1745,13 +1746,20 @@ function normalizeInventoryUiStatus(status: OwnedProduct["status"]): InventoryUi
 }
 
 function ProductImage({ alt, catalogProductId, className, src }: { alt: string; catalogProductId?: string | null; className: string; src: string | null }) {
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
-  const cachedSrc = src && catalogProductId
-    ? `/api/v1/catalog-products/${catalogProductId}/image`
-    : null;
-  const displayedSrc = cachedSrc && failedSrc !== cachedSrc ? cachedSrc : src;
-  if (!displayedSrc || failedSrc === src) return <ProductImagePlaceholder />;
-  return <img alt={alt} className={className} onError={() => setFailedSrc(displayedSrc)} src={displayedSrc} />;
+  const [failedSources, setFailedSources] = useState<string[]>([]);
+  const displayedSrc = nextProductImageSource(src, catalogProductId, failedSources);
+  if (!displayedSrc) return <ProductImagePlaceholder />;
+  return (
+    <img
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => setFailedSources((current) => current.includes(displayedSrc)
+        ? current
+        : [...current, displayedSrc])}
+      src={displayedSrc}
+    />
+  );
 }
 
 function ProductImagePlaceholder() {

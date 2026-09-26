@@ -71,6 +71,28 @@ export type CatalogCandidatesUiTransition = {
   lookupMessage: string;
 };
 
+export function productImageSourceCandidates(
+  src: string | null,
+  catalogProductId: string | null | undefined,
+) {
+  return [...new Set([
+    ...(src && catalogProductId
+      ? [`/api/v1/catalog-products/${catalogProductId}/image`]
+      : []),
+    ...(src ? [src] : []),
+  ])];
+}
+
+export function nextProductImageSource(
+  src: string | null,
+  catalogProductId: string | null | undefined,
+  failedSources: readonly string[],
+) {
+  const failed = new Set(failedSources);
+  return productImageSourceCandidates(src, catalogProductId)
+    .find((candidate) => !failed.has(candidate)) ?? null;
+}
+
 export function catalogIdentityToLookupCandidate(
   identity: CatalogProductIdentity,
 ): UserProductLookupCandidate {

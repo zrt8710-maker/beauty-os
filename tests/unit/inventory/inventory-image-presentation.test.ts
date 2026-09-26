@@ -61,9 +61,9 @@ describe("Inventory image presentation", () => {
     expect(source).not.toContain("临时查看");
   });
 
-  it("allows a new image URL to render after the previous URL failed", () => {
-    expect(source).toContain("const [failedSrc, setFailedSrc]");
-    expect(source).toContain("failedSrc === src");
-    expect(source).toContain("setFailedSrc(displayedSrc)");
+  it("stops retrying exhausted image sources while allowing a new URL", () => {
+    expect(source).toContain("const [failedSources, setFailedSources]");
+    expect(source).toContain("nextProductImageSource(src, catalogProductId, failedSources)");
+    expect(source).toContain("current.includes(displayedSrc)");
   });
 });

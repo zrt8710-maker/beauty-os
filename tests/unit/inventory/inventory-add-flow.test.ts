@@ -11,6 +11,7 @@ import {
   DEFAULT_INVENTORY_ADD_STATUS,
   identityResolutionContinuation,
   INVENTORY_ADD_FLOW_STAGES,
+  nextProductImageSource,
   pendingAssetFallbackForResolution,
   PUBLIC_PRODUCT_INFO_UNAVAILABLE_MESSAGE,
   recognitionToLookupResponse,
@@ -21,6 +22,16 @@ import {
 import { productIdentityResolutionSchema } from "@/schemas/product-identity-resolution";
 
 describe("inventory add flow", () => {
+  it("tries each Catalog image source once and then settles on the placeholder", () => {
+    const catalogProductId = "10000000-0000-4000-8000-000000000001";
+    const original = "https://images.example/product.png";
+    const proxy = `/api/v1/catalog-products/${catalogProductId}/image`;
+
+    expect(nextProductImageSource(original, catalogProductId, [])).toBe(proxy);
+    expect(nextProductImageSource(original, catalogProductId, [proxy])).toBe(original);
+    expect(nextProductImageSource(original, catalogProductId, [proxy, original])).toBeNull();
+  });
+
   it("defaults a newly added asset to active", () => {
     expect(DEFAULT_INVENTORY_ADD_STATUS).toBe("active");
   });
