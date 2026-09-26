@@ -353,6 +353,27 @@ describe("Volcengine Agent-Plan product research provider", () => {
     expect(result.research_payload.usage.value).not.toBeNull();
   });
 
+  it("wraps an observed bare claims array without changing claim facts or evidence", async () => {
+    const output = canonicalOutput("洁面后使用");
+    const claims = output.research_payload.claims.value;
+    (output.research_payload as Record<string, unknown>).claims = claims;
+
+    const result = await providerForOutput(output).research(input);
+
+    expect(result.research_payload.claims).toMatchObject({
+      value: [expect.objectContaining({
+        raw_text: "Hydrates",
+        normalized_claim: "帮助保持肌肤水润",
+        confidence: 55,
+        evidence_refs: ["source_1"],
+      })],
+      evidence_refs: ["source_1"],
+      confidence: 55,
+      has_conflict: false,
+      includes_ai_inference: false,
+    });
+  });
+
   it("normalizes localized source taxonomy and derives authority deterministically", async () => {
     const output = canonicalOutput("洁面后使用");
     output.sources[0].source_type = "电商平台";

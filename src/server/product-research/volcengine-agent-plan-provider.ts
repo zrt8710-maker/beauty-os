@@ -89,12 +89,14 @@ export function createVolcengineAgentPlanProductResearchProvider(options: Provid
         }
         const normalizedTransport = normalizeAgent3Transport(json);
         if (normalizedTransport.stringReasons > 0 || normalizedTransport.malformedReasons > 0
+          || normalizedTransport.bareClaimsWrapped > 0
           || normalizedTransport.candidateArraysWrapped > 0 || normalizedTransport.malformedCandidatesDropped > 0
           || normalizedTransport.ingredientsRepresentationsNormalized > 0
           || normalizedTransport.malformedSections.length > 0 || normalizedTransport.sourcesNormalized > 0) {
           researchDebug("provider_transport_normalization", {
             reasons_string_normalized: normalizedTransport.stringReasons,
             reasons_malformed_emptied: normalizedTransport.malformedReasons,
+            bare_claims_arrays_wrapped: normalizedTransport.bareClaimsWrapped,
             optional_candidate_arrays_wrapped: normalizedTransport.candidateArraysWrapped,
             optional_candidate_fields_dropped: normalizedTransport.malformedCandidatesDropped,
             ingredients_representations_normalized: normalizedTransport.ingredientsRepresentationsNormalized,
@@ -567,18 +569,42 @@ function normalizeTransportReasons(value: unknown): {
   value: unknown;
   stringReasons: number;
   malformedReasons: number;
+  bareClaimsWrapped: number;
   candidateArraysWrapped: number;
   malformedCandidatesDropped: number;
 } {
   if (!isPlainRecord(value) || !isPlainRecord(value.research_payload)) {
-    return { value, stringReasons: 0, malformedReasons: 0, candidateArraysWrapped: 0, malformedCandidatesDropped: 0 };
+    return { value, stringReasons: 0, malformedReasons: 0, bareClaimsWrapped: 0, candidateArraysWrapped: 0, malformedCandidatesDropped: 0 };
   }
   let stringReasons = 0;
   let malformedReasons = 0;
+  let bareClaimsWrapped = 0;
   let candidateArraysWrapped = 0;
   let malformedCandidatesDropped = 0;
   let payloadChanged = false;
   const payload = { ...value.research_payload };
+  if (Array.isArray(payload.claims)) {
+    const claims = payload.claims;
+    const evidenceRefs = [...new Set(claims.flatMap((claim) =>
+      isPlainRecord(claim) && Array.isArray(claim.evidence_refs)
+        ? claim.evidence_refs.filter((reference): reference is string => typeof reference === "string")
+        : []
+    ))].slice(0, 100);
+    const confidence = claims.reduce((maximum, claim) =>
+      isPlainRecord(claim) && typeof claim.confidence === "number" && Number.isFinite(claim.confidence)
+        ? Math.max(maximum, claim.confidence)
+        : maximum, 0);
+    payload.claims = {
+      value: claims,
+      evidence_refs: evidenceRefs,
+      confidence,
+      reasons: ["Normalized observed bare claims array envelope."],
+      has_conflict: false,
+      includes_ai_inference: false,
+    };
+    bareClaimsWrapped += 1;
+    payloadChanged = true;
+  }
   for (const name of researchEvidenceBlockNames) {
     const block = payload[name];
     if (!isPlainRecord(block) || !("reasons" in block)) continue;
@@ -626,6 +652,7 @@ function normalizeTransportReasons(value: unknown): {
     value: payloadChanged ? { ...value, research_payload: payload } : value,
     stringReasons,
     malformedReasons,
+    bareClaimsWrapped,
     candidateArraysWrapped,
     malformedCandidatesDropped,
   };
