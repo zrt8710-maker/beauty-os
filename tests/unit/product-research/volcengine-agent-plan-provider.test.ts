@@ -93,6 +93,9 @@ describe("Volcengine Agent-Plan product research provider", () => {
     expect(body.input).toContain("natural Simplified Chinese");
     expect(body.input).toContain("raw_name must remain the original INCI/source name");
     expect(body.input).toContain("never weaken the source warning");
+    expect(body.input).toContain("Incomplete evidence means a supported partial result");
+    expect(body.input).toContain("When INPUT.variant_name is null");
+    expect(body.input).toContain("Mark includes_ai_inference:true");
   });
 
   it("passes application-controlled SearchInfinity leads to Agent3 without changing web_search", async () => {
