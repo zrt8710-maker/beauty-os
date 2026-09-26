@@ -90,6 +90,7 @@ export function createVolcengineAgentPlanProductResearchProvider(options: Provid
         const normalizedTransport = normalizeAgent3Transport(json);
         if (normalizedTransport.stringReasons > 0 || normalizedTransport.malformedReasons > 0
           || normalizedTransport.bareClaimsWrapped > 0
+          || normalizedTransport.usageRepresentationsNormalized > 0
           || normalizedTransport.candidateArraysWrapped > 0 || normalizedTransport.malformedCandidatesDropped > 0
           || normalizedTransport.ingredientsRepresentationsNormalized > 0
           || normalizedTransport.malformedSections.length > 0 || normalizedTransport.sourcesNormalized > 0) {
@@ -97,6 +98,7 @@ export function createVolcengineAgentPlanProductResearchProvider(options: Provid
             reasons_string_normalized: normalizedTransport.stringReasons,
             reasons_malformed_emptied: normalizedTransport.malformedReasons,
             bare_claims_arrays_wrapped: normalizedTransport.bareClaimsWrapped,
+            usage_representations_normalized: normalizedTransport.usageRepresentationsNormalized,
             optional_candidate_arrays_wrapped: normalizedTransport.candidateArraysWrapped,
             optional_candidate_fields_dropped: normalizedTransport.malformedCandidatesDropped,
             ingredients_representations_normalized: normalizedTransport.ingredientsRepresentationsNormalized,
@@ -660,7 +662,8 @@ function normalizeTransportReasons(value: unknown): {
 
 function normalizeAgent3Transport(value: unknown) {
   const reasons = normalizeTransportReasons(value);
-  const ingredients = normalizeIngredientsRepresentation(reasons.value);
+  const usage = normalizeUsageRepresentation(reasons.value);
+  const ingredients = normalizeIngredientsRepresentation(usage.value);
   const ingredientTrust = normalizeModelDeclaredIngredientDifferences(ingredients.value);
   const identity = normalizeIdentityValue(ingredientTrust.value);
   const sources = normalizeResearchSources(identity.value);
@@ -668,9 +671,47 @@ function normalizeAgent3Transport(value: unknown) {
   return {
     ...reasons,
     value: isolated.value,
+    usageRepresentationsNormalized: usage.normalized,
     ingredientsRepresentationsNormalized: ingredients.normalized + ingredientTrust.normalized,
     malformedSections: isolated.malformedSections,
     sourcesNormalized: sources.normalized,
+  };
+}
+
+const usageValueKeys = ["instructions", "am_pm", "frequency", "routine_order", "leave_on", "rinse_off", "cautions"] as const;
+const usageEvidenceKeys = ["evidence_refs", "confidence", "reasons", "has_conflict", "includes_ai_inference"] as const;
+const usageSectionKeys = new Set<string>([...usageValueKeys, ...usageEvidenceKeys]);
+
+/**
+ * Agent Plan sometimes flattens the documented usage evidence envelope. The
+ * flattened form still carries the same facts and section-level provenance,
+ * so wrapping it is lossless. Arbitrary usage objects remain isolated by the
+ * strict transport schema.
+ */
+function normalizeUsageRepresentation(value: unknown): { value: unknown; normalized: number } {
+  if (!isPlainRecord(value) || !isPlainRecord(value.research_payload)) return { value, normalized: 0 };
+  const section = value.research_payload.usage;
+  if (!isPlainRecord(section) || Object.prototype.hasOwnProperty.call(section, "value")) {
+    return { value, normalized: 0 };
+  }
+  if (Object.keys(section).some((key) => !usageSectionKeys.has(key))) return { value, normalized: 0 };
+  if (!usageValueKeys.some((key) => Object.prototype.hasOwnProperty.call(section, key))) return { value, normalized: 0 };
+  if (!usageEvidenceKeys.every((key) => Object.prototype.hasOwnProperty.call(section, key))) return { value, normalized: 0 };
+  if (!boundedStrings(section.evidence_refs, 100, 200)) return { value, normalized: 0 };
+  if (typeof section.confidence !== "number" || !Number.isFinite(section.confidence)) return { value, normalized: 0 };
+  if (!boundedStrings(section.reasons, 20, 500)) return { value, normalized: 0 };
+  if (typeof section.has_conflict !== "boolean" || typeof section.includes_ai_inference !== "boolean") {
+    return { value, normalized: 0 };
+  }
+  const wrapped = {
+    value: Object.fromEntries(usageValueKeys.flatMap((key) =>
+      Object.prototype.hasOwnProperty.call(section, key) ? [[key, section[key]]] : []
+    )),
+    ...Object.fromEntries(usageEvidenceKeys.map((key) => [key, section[key]])),
+  };
+  return {
+    value: { ...value, research_payload: { ...value.research_payload, usage: wrapped } },
+    normalized: 1,
   };
 }
 
@@ -979,9 +1020,10 @@ INPUT also includes research_mode and enrichment_focus. In broad mode, establish
 
 EVIDENCE COVERAGE CONTRACT:
 - Actively research every requested section and return every supported product fact you can find. In broad mode do not stop after identity or a short ingredient list. In gap_targeted mode exhaust the named missing sections. Incomplete evidence means a supported partial result plus explicit uncertainty; it does not mean discarding supported facts.
+- Product Knowledge is an internal administrator knowledge record, not consumer-facing copy. Fill every supported database field: identity aliases, the fullest exact-product ingredient declaration available, all distinct public claims, product type, texture, complete usage instructions, timing, frequency, routine order, rinse/leave-on state, and product-specific cautions. Do not shorten a section merely to make the answer conversational or concise; keep reasons concise so factual fields fit within the response budget.
 - When INPUT.variant_name is present, require evidence for that exact variant. When INPUT.variant_name is null, sources about the exact named product may support product-level identity, public claims and product type even when a retailer offers multiple texture or size variants. Do not generalize a variant-specific formula, ingredient list, texture, usage direction or caution to all variants. Preserve the supported product-level facts and report the unresolved variant scope in uncertainties.
-- Derive care_role_candidates and capability_candidates when product-specific cited claims or ingredients support a cautious research hypothesis. Mark includes_ai_inference:true, cite the supporting source IDs, keep confidence proportional to the evidence, and never turn the hypothesis into verified knowledge or personalized advice.
+- Derive care_role_candidates and capability_candidates when product-specific cited claims or ingredients support a cautious research hypothesis. You may apply established cosmetic-domain reasoning to those source-backed product facts; this inference allowance applies only to these candidate fields. Mark includes_ai_inference:true, cite the supporting source IDs, keep confidence proportional to the evidence, and never turn the hypothesis into verified knowledge or personalized advice.
 
 Only output a Product Knowledge fact when a source in this response gives product-specific support for the confirmed Catalog product in INPUT, following the variant rules above. Sources are model-reported research provenance, not application-verified evidence. Do not use general skincare knowledge, typical usage, generic safety advice, unsupported model inference, another SKU, another generation, or same-series assumptions as product facts. In particular, do not output pregnancy advice, patch-test advice, acid-layering advice, or other generic cautions unless product-specific material explicitly supports it.
 
-Never guess INCI, concentration, ingredient order, public claim, source, texture, usage, or cautions. Research only the confirmed Catalog product in INPUT: identity aliases, ingredients, public claims, product type, texture, and product-specific usage/cautions. Do not search for or output shelf life, PAO / period after opening, opened-product lifetime, 6M / 12M / 24M labels, or any expiry calculation. Different sections may use appropriate sources: prefer regulatory/official/package evidence for ingredients, official or brand-owner material for claims, official/package/official-store instructions for usage and cautions, and official or reliable retailer factual descriptions for texture. Marketing claims remain claims, not medical facts. You may include care_role_candidates or capability_candidates only as source-referenced research hypotheses for follow-up; their value is an array of { code, confidence, evidence_refs }. They are not verified Product Knowledge, not routine advice, and must not be based on generic skincare knowledge. Do not output personalized suitability, Beauty OS interpretation, generic skincare advice, manufacturer systems, filing systems, barcode research, or risk taxonomies. Do not publish knowledge.`;
+Never guess INCI, concentration, ingredient order, public claim, source, texture, usage, or cautions. Research only the confirmed Catalog product in INPUT: identity aliases, ingredients, public claims, product type, texture, and product-specific usage/cautions. Do not search for or output shelf life, PAO / period after opening, opened-product lifetime, 6M / 12M / 24M labels, or any expiry calculation. Different sections may use appropriate sources: prefer regulatory/official/package evidence for ingredients, official or brand-owner material for claims, official/package/official-store instructions for usage and cautions, and official or reliable retailer factual descriptions for texture. Marketing claims remain claims, not medical facts. You may include care_role_candidates or capability_candidates only as source-referenced research hypotheses for follow-up; their value is an array of { code, confidence, evidence_refs }. They are not verified Product Knowledge or personalized routine advice. Do not output personalized suitability, generic skincare advice, manufacturer systems, filing systems, barcode research, or risk taxonomies. Do not publish knowledge.`;

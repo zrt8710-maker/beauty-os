@@ -189,6 +189,26 @@ function mapUsage(section: RecordValue): RecordValue {
     evidence_refs: refs(section),
   };
 }
+function mapRiskCautions(section: RecordValue): unknown {
+  const value = isRecord(section.value) ? section.value : {};
+  const cautions = value.cautions === undefined || value.cautions === null
+    ? []
+    : trimmedStrings(textList(value.cautions));
+  const evidenceRefs = refs(section);
+  if (!Array.isArray(evidenceRefs) || evidenceRefs.length === 0) return [];
+  return cautions.map((description) => ({
+    code_or_label: "产品使用注意事项",
+    description,
+    confidence: normalizeConfidence(section.confidence),
+    basis: "external_evidence",
+    evidence_refs: evidenceRefs,
+  }));
+}
+function hasUsageCautions(section: RecordValue) {
+  return isRecord(section.value)
+    && Array.isArray(section.value.cautions)
+    && section.value.cautions.length > 0;
+}
 function mapProductType(section: RecordValue): RecordValue {
   const candidate = section.value;
   const knownType = typeof candidate === "string" && (PRODUCT_TYPES as readonly string[]).includes(candidate);
@@ -285,8 +305,19 @@ export function buildProductResearchDraftResult(
         sections.capability_candidates,
         PRODUCT_KNOWLEDGE_CAPABILITY_CODES,
       ),
-      risk_cautions: [],
-      field_confidence: mapFieldConfidence(sections),
+      risk_cautions: mapRiskCautions(usage),
+      field_confidence: {
+        ...mapFieldConfidence(sections),
+        risk: hasUsageCautions(usage)
+          ? {
+              score: fieldScore(usage),
+              evidence_refs: refs(usage),
+              reasons: reasons(usage),
+              has_conflict: flag(usage, "has_conflict"),
+              includes_ai_inference: flag(usage, "includes_ai_inference"),
+            }
+          : { score: 0, evidence_refs: [], reasons: [], has_conflict: false, includes_ai_inference: false },
+      },
       sources: mapSources(modelResult.sources),
       uncertainties: mapUncertainties(payload.uncertainties),
       conflicts: mapConflicts(payload.conflicts),

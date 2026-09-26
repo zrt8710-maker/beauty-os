@@ -165,6 +165,27 @@ describe("Agent3 research result to draft adapter", () => {
     expect(composed.research_payload.usage).toMatchObject({ instructions: [], cautions: [], am_pm: [], frequency: null });
   });
 
+  it("preserves source-backed usage cautions in the existing risk knowledge field", () => {
+    const composed = buildProductResearchDraftResult(input, result({
+      usage: evidence({
+        instructions: ["洁面后使用"], cautions: ["避免接触眼睛"], am_pm: ["pm"],
+        frequency: "每日一次", routine_order: "精华后", leave_on: true, rinse_off: false,
+      }, 72, ["source_1"]),
+    }));
+
+    expect(composed.research_payload.risk_cautions).toEqual([{
+      code_or_label: "产品使用注意事项",
+      description: "避免接触眼睛",
+      confidence: 72,
+      basis: "external_evidence",
+      evidence_refs: ["source_1"],
+    }]);
+    expect(composed.research_payload.field_confidence.risk).toMatchObject({
+      score: 72,
+      evidence_refs: ["source_1"],
+    });
+  });
+
   it("writes explicit empty representations for non-researched domains", () => {
     const composed = buildProductResearchDraftResult(input, result());
     expect(composed.research_payload).toMatchObject({ texture: null, care_role_candidates: [], capability_candidates: [], risk_cautions: [] });

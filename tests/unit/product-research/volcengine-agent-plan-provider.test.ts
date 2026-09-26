@@ -310,6 +310,40 @@ describe("Volcengine Agent-Plan product research provider", () => {
     });
   });
 
+  it("wraps a flattened usage evidence block without losing product knowledge", async () => {
+    const output = canonicalOutput("洁面后使用");
+    const canonical = output.research_payload.usage;
+    (output.research_payload as Record<string, unknown>).usage = {
+      instructions: ["洁面后取适量涂抹于面部"],
+      am_pm: ["am", "pm"],
+      frequency: "每日早晚",
+      routine_order: "精华后",
+      leave_on: true,
+      rinse_off: false,
+      cautions: ["避免接触眼睛"],
+      evidence_refs: canonical.evidence_refs,
+      confidence: canonical.confidence,
+      reasons: canonical.reasons,
+      has_conflict: canonical.has_conflict,
+      includes_ai_inference: canonical.includes_ai_inference,
+    };
+
+    const result = await providerForOutput(output).research(input);
+
+    expect(result.research_payload.usage).toMatchObject({
+      value: {
+        instructions: ["洁面后取适量涂抹于面部"],
+        am_pm: ["am", "pm"],
+        frequency: "每日早晚",
+        routine_order: "精华后",
+        leave_on: true,
+        rinse_off: false,
+        cautions: ["避免接触眼睛"],
+      },
+      evidence_refs: ["source_1"],
+    });
+  });
+
   it("isolates an English-only consumer section instead of persisting it", async () => {
     const output = canonicalOutput("洁面后使用");
     output.research_payload.usage.value = {
