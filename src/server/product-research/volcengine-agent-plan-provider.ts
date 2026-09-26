@@ -50,7 +50,7 @@ type ProviderOptions = {
 };
 const FIRST_EVENT_TIMEOUT_MS = 15_000;
 const OVERALL_TIMEOUT_MS = 120_000;
-const MAX_OUTPUT_TOKENS = 32_768;
+const MAX_OUTPUT_TOKENS = 8_192;
 
 export function createVolcengineAgentPlanProductResearchProvider(options: ProviderOptions): ProductResearchProvider {
   const fetchImpl = options.fetchImpl ?? fetch;

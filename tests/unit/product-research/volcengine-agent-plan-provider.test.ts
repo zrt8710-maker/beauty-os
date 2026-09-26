@@ -80,7 +80,7 @@ describe("Volcengine Agent-Plan product research provider", () => {
       model: "doubao-seed-2.1-turbo",
       stream: true,
       tools: [{ type: "web_search", web_search: {} }],
-      max_output_tokens: 32_768,
+      max_output_tokens: 8_192,
       thinking: { type: "disabled" },
     });
     expect(body.input).toContain(input.catalog_product_id);
@@ -114,7 +114,7 @@ describe("Volcengine Agent-Plan product research provider", () => {
     expect(body.input).toContain("https://search.example/hfp");
     expect(body).toMatchObject({
       tools: [{ type: "web_search", web_search: {} }],
-      max_output_tokens: 32_768,
+      max_output_tokens: 8_192,
       thinking: { type: "disabled" },
     });
   });
