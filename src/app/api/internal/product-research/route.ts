@@ -72,7 +72,9 @@ export async function POST(request: Request) {
           identity_sources: savedInput.success ? savedInput.data.identity_sources : [],
           search_results: [],
         });
-        outcome = result === "started" || result === "existing_draft" || result === "verified_knowledge"
+        const usablePartial = result === "partial"
+          && await drafts.getLatestUsableDraft(job.catalogProductId) !== null;
+        outcome = result === "started" || result === "existing_draft" || result === "verified_knowledge" || usablePartial
           ? "completed" : "retry";
         reason = outcome === "retry" ? result : null;
       }
