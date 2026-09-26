@@ -77,7 +77,7 @@ export function createVolcengineAgentPlanProductResearchProvider(options: Provid
             tools: [{ type: "web_search", web_search: {} }],
             stream: true,
             max_output_tokens: MAX_OUTPUT_TOKENS,
-            thinking: { type: "enabled" },
+            thinking: { type: "disabled" },
           }),
         }), controller.signal);
         if (!response.ok || response.body === null) throw new ProductResearchUnavailableError("http_error", `PRODUCT_RESEARCH_HTTP_${response.status}`);

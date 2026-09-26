@@ -67,7 +67,7 @@ function setSectionRefs(output: ReturnType<typeof canonicalOutput>, name: "ingre
 }
 
 describe("Volcengine Agent-Plan product research provider", () => {
-  it("uses the streaming Responses API with supported deep thinking and an explicit research output budget", async () => {
+  it("uses the streaming Responses API with a production-safe explicit research output budget", async () => {
     const fetchMock = vi.fn(async () => new Response("unavailable", { status: 503 }));
     const provider = createVolcengineAgentPlanProductResearchProvider({
       apiKey: "test-key", model: "doubao-seed-2.1-turbo", baseUrl: "https://example.test/responses", fetchImpl: fetchMock as unknown as typeof fetch,
@@ -81,7 +81,7 @@ describe("Volcengine Agent-Plan product research provider", () => {
       stream: true,
       tools: [{ type: "web_search", web_search: {} }],
       max_output_tokens: 32_768,
-      thinking: { type: "enabled" },
+      thinking: { type: "disabled" },
     });
     expect(body.input).toContain(input.catalog_product_id);
     expect(body.input).not.toContain("owned_product_id");
@@ -115,7 +115,7 @@ describe("Volcengine Agent-Plan product research provider", () => {
     expect(body).toMatchObject({
       tools: [{ type: "web_search", web_search: {} }],
       max_output_tokens: 32_768,
-      thinking: { type: "enabled" },
+      thinking: { type: "disabled" },
     });
   });
 
