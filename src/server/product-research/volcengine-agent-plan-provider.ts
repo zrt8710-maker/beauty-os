@@ -4,6 +4,10 @@ import { z } from "zod";
 
 import { PRODUCT_TYPES } from "@/schemas/product";
 import {
+  PRODUCT_KNOWLEDGE_CAPABILITY_CODES,
+  PRODUCT_KNOWLEDGE_CARE_ROLE_CODES,
+} from "@/schemas/product-knowledge-curation";
+import {
   AGENT3_RESEARCH_SOURCE_TYPES,
   productResearchInputSchema,
   agent3ResearchResultSchema,
@@ -940,7 +944,7 @@ LANGUAGE CONTRACT:
 - Translation or normalization never changes evidence_refs. Do not create a translated source title or replace raw evidence with the Chinese presentation.
 - Do not mechanically translate wording when a concise Chinese structured fact is clearer, but do not infer, expand, or personalize it. In particular, never rewrite a limited statement about transient tingling into an assertion that pain or irritation proves the product is working.
 
-care_role_candidates and capability_candidates are optional evidence-block objects using that same envelope; their value is the candidate array. Never return either optional field as a bare array. If omitted or malformed, Beauty OS drops only that optional interpretation field and keeps valid core research sections.
+care_role_candidates and capability_candidates are optional evidence-block objects using that same envelope; their value is the candidate array. Never return either optional field as a bare array. care_role_candidates[].code must be exactly one of: ${PRODUCT_KNOWLEDGE_CARE_ROLE_CODES.join(", ")}. capability_candidates[].code must be exactly one of: ${PRODUCT_KNOWLEDGE_CAPABILITY_CODES.join(", ")}. If omitted or malformed, Beauty OS drops only that optional interpretation field and keeps valid core research sections.
 
 INPUT includes search_results supplied by Beauty OS. They are search-provider-returned candidate sources: title, URL, snippet, summary, and site metadata. Prefer these exact URLs as research leads. Do not invent a URL, and do not claim that a supplied source contains a fact absent from its supplied snippet or summary. A supplied search result is not application-verified evidence. Do not treat another SKU, generation, or variant as exact support.
 

@@ -96,6 +96,8 @@ describe("Volcengine Agent-Plan product research provider", () => {
     expect(body.input).toContain("Incomplete evidence means a supported partial result");
     expect(body.input).toContain("When INPUT.variant_name is null");
     expect(body.input).toContain("Mark includes_ai_inference:true");
+    expect(body.input).toContain("care_role_candidates[].code must be exactly one of: remover, cleanser, hydration, treatment, moisturizer, sunscreen");
+    expect(body.input).toContain("capability_candidates[].code must be exactly one of: hydration, barrier_support, soothing, oil_balance, sun_protection");
   });
 
   it("passes application-controlled SearchInfinity leads to Agent3 without changing web_search", async () => {
