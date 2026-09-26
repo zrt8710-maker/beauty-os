@@ -67,7 +67,7 @@ function setSectionRefs(output: ReturnType<typeof canonicalOutput>, name: "ingre
 }
 
 describe("Volcengine Agent-Plan product research provider", () => {
-  it("uses the streaming Responses API with Agent3-only disabled thinking", async () => {
+  it("uses the streaming Responses API with adaptive thinking and an explicit research output budget", async () => {
     const fetchMock = vi.fn(async () => new Response("unavailable", { status: 503 }));
     const provider = createVolcengineAgentPlanProductResearchProvider({
       apiKey: "test-key", model: "doubao-seed-2.1-turbo", baseUrl: "https://example.test/responses", fetchImpl: fetchMock as unknown as typeof fetch,
@@ -76,8 +76,13 @@ describe("Volcengine Agent-Plan product research provider", () => {
     const calls = fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit]>;
     const request = calls[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body));
-    expect(body).toMatchObject({ model: "doubao-seed-2.1-turbo", stream: true, tools: [{ type: "web_search", web_search: {} }] });
-    expect(body).toMatchObject({ thinking: { type: "disabled" } });
+    expect(body).toMatchObject({
+      model: "doubao-seed-2.1-turbo",
+      stream: true,
+      tools: [{ type: "web_search", web_search: {} }],
+      max_output_tokens: 32_768,
+      thinking: { type: "auto" },
+    });
     expect(body.input).toContain(input.catalog_product_id);
     expect(body.input).not.toContain("owned_product_id");
     expect(body.input).not.toContain("3614273991032");
@@ -102,7 +107,11 @@ describe("Volcengine Agent-Plan product research provider", () => {
     const request = (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit]>)[0]?.[1] as RequestInit;
     const body = JSON.parse(String(request.body));
     expect(body.input).toContain("https://search.example/hfp");
-    expect(body).toMatchObject({ tools: [{ type: "web_search", web_search: {} }], thinking: { type: "disabled" } });
+    expect(body).toMatchObject({
+      tools: [{ type: "web_search", web_search: {} }],
+      max_output_tokens: 32_768,
+      thinking: { type: "auto" },
+    });
   });
 
   it("accepts explicit top-level source provenance from streamed Agent3 JSON", async () => {

@@ -46,6 +46,7 @@ type ProviderOptions = {
 };
 const FIRST_EVENT_TIMEOUT_MS = 15_000;
 const OVERALL_TIMEOUT_MS = 120_000;
+const MAX_OUTPUT_TOKENS = 32_768;
 
 export function createVolcengineAgentPlanProductResearchProvider(options: ProviderOptions): ProductResearchProvider {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -71,7 +72,8 @@ export function createVolcengineAgentPlanProductResearchProvider(options: Provid
             input: `${productResearchPrompt}\n${sourceGuardPrompt(input)}\nINPUT:${JSON.stringify(modelFacingResearchInput(input))}`,
             tools: [{ type: "web_search", web_search: {} }],
             stream: true,
-            thinking: { type: "disabled" },
+            max_output_tokens: MAX_OUTPUT_TOKENS,
+            thinking: { type: "auto" },
           }),
         }), controller.signal);
         if (!response.ok || response.body === null) throw new ProductResearchUnavailableError("http_error", `PRODUCT_RESEARCH_HTTP_${response.status}`);
