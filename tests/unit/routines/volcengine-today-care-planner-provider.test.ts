@@ -262,6 +262,24 @@ describe("Volcengine Today Care Planner provider", () => {
     log.mockRestore();
   });
 
+  it("retries one early transport failure with the identical Planner request", async () => {
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed", { cause: { code: "ECONNRESET" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output_text: "{}" }), { status: 200 }));
+    const provider = createVolcengineTodayCarePlannerProvider({
+      apiKey: "test-key",
+      model: "test-model",
+      baseUrl: "https://planner.example.test/v1",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await expect(provider.plan(minimalPlannerInput())).resolves.toEqual({});
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls[1]![0]).toBe(fetchImpl.mock.calls[0]![0]);
+    expect(fetchImpl.mock.calls[1]![1]?.body).toBe(fetchImpl.mock.calls[0]![1]?.body);
+  });
+
   it("requires every returned product reference to be a complete eligible owned-product UUID", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({ output_text: "{}" }), { status: 200 }));
     const provider = createVolcengineTodayCarePlannerProvider({ apiKey: "test-key", model: "test-model", baseUrl: "https://planner.example.test/v1", fetchImpl: fetchImpl as typeof fetch });

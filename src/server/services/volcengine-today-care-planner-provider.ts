@@ -18,6 +18,9 @@ const MAX_OUTPUT_TOKENS = 4000;
 // successfully between 50s and 56s. Keep this deadline Planner-specific so
 // narration providers retain their shorter shared failure budget.
 const TODAY_CARE_PLANNER_TIMEOUT_MS = 75_000;
+// A second full Planner attempt still has room inside EdgeOne's 120s limit
+// only when the first request fails early at the transport layer.
+const TODAY_CARE_PLANNER_RETRY_CUTOFF_MS = 30_000;
 export function createVolcengineTodayCarePlannerProvider(options: { apiKey: string; model: string; baseUrl: string; fetchImpl?: typeof fetch; timeoutMs?: number }): CarePlannerProvider {
   const fetchImpl = options.fetchImpl ?? fetch;
   // Short-term operational rollback only. Production defaults to Minimal and
@@ -49,27 +52,28 @@ export function createVolcengineTodayCarePlannerProvider(options: { apiKey: stri
       totalSerializedChars: serializedRequestBody.length,
     });
     let response: Response | null = null;
-    let transportFailure: ReturnType<typeof classifyTransportFailure> | null = null;
-    try {
-    response = await fetchImpl(options.baseUrl, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json" },
-      signal: providerRequestSignal(options.timeoutMs ?? TODAY_CARE_PLANNER_TIMEOUT_MS),
-      body: serializedRequestBody,
-    });
-    } catch (error) {
-      transportFailure = classifyTransportFailure(error);
-      throw error;
-    } finally {
-      if (process.env.NODE_ENV === "development") {
-        const durationMs = Date.now() - startedAt;
-        console.info("[today-care-planner]", {
-          stage: "provider_request",
-          durationMs,
-          status: response?.status ?? "network_error",
-          ...(transportFailure ? { duration_ms: durationMs, ...transportFailure } : {}),
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const attemptStartedAt = Date.now();
+      let transportFailure: ReturnType<typeof classifyTransportFailure> | null = null;
+      try {
+        response = await fetchImpl(options.baseUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json" },
+          signal: providerRequestSignal(options.timeoutMs ?? TODAY_CARE_PLANNER_TIMEOUT_MS),
+          body: serializedRequestBody,
         });
+      } catch (error) {
+        transportFailure = classifyTransportFailure(error);
+        const elapsedMs = Date.now() - startedAt;
+        const canRetry = attempt === 1
+          && transportFailure.failure_kind !== "abort_timeout"
+          && elapsedMs <= TODAY_CARE_PLANNER_RETRY_CUTOFF_MS;
+        logProviderRequest(attemptStartedAt, attempt, null, transportFailure, canRetry);
+        if (canRetry) continue;
+        throw error;
       }
+      logProviderRequest(attemptStartedAt, attempt, response, null, false);
+      break;
     }
     if (!response || !response.ok) throw new Error("CARE_PLANNER_UNAVAILABLE");
     const payload = await response.json() as ProviderPayload;
@@ -91,6 +95,25 @@ export function createVolcengineTodayCarePlannerProvider(options: { apiKey: stri
       throw new Error("CARE_PLANNER_MALFORMED_OUTPUT");
     }
   } };
+}
+
+function logProviderRequest(
+  startedAt: number,
+  attempt: number,
+  response: Response | null,
+  transportFailure: ReturnType<typeof classifyTransportFailure> | null,
+  willRetry: boolean,
+) {
+  if (process.env.NODE_ENV !== "development") return;
+  const durationMs = Date.now() - startedAt;
+  console.info("[today-care-planner]", {
+    stage: "provider_request",
+    attempt,
+    durationMs,
+    status: response?.status ?? "network_error",
+    will_retry: willRetry,
+    ...(transportFailure ? { duration_ms: durationMs, ...transportFailure } : {}),
+  });
 }
 
 function logPlannerPayloadSize(input: {
