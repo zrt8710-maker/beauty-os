@@ -62,6 +62,8 @@ describe("Volcengine Today Care Planner provider", () => {
     expect(request.instructions).toContain("skinGoals are long-term priorities");
     expect(request.instructions).toContain("selected_steps array order is the final executable application order");
     expect(request.instructions).toContain("do not assume a universal fixed skincare order");
+    expect(request.instructions).toContain("usage_sequence is your structured audit");
+    expect(request.instructions).toContain("do not return an end-user instruction that depends on an unselected step");
     expect(request.instructions).toContain("selection_rationale contains only candidateIds, selectedProductId, relevantDifferences, whySelectedToday, and certainty");
     expect(providerInput).not.toHaveProperty("effectiveSkinState");
     expect(providerInput).not.toHaveProperty("todaySkin");
@@ -553,6 +555,7 @@ describe("Volcengine Today Care Planner provider", () => {
           relevantSkinSignalIds: ["skin-1"],
           relevantWeatherSignalIds: [],
           selection_rationale: { candidateIds: [id], relevantDifferences: [], certainty: "clear" },
+          usage_sequence: { prerequisiteStatus: "none", afterSelectedProductIds: [] },
         }],
         unresolved_needs: [],
         candidateComparisons: [],
@@ -567,6 +570,7 @@ describe("Volcengine Today Care Planner provider", () => {
 
     expect(schema.properties.selected_steps.items.properties).not.toHaveProperty("why_this_product");
     expect(schema.properties.selected_steps.items.properties).not.toHaveProperty("value_if_removed");
+    expect(schema.properties.selected_steps.items.required).toContain("usage_sequence");
     expect(schema.properties).not.toHaveProperty("productFitAssessments");
     expect(schema.properties).not.toHaveProperty("usedGuidanceIds");
     expect(schema.properties).not.toHaveProperty("purposeOmissions");
@@ -581,6 +585,7 @@ describe("Volcengine Today Care Planner provider", () => {
     expect(decision.selected_steps[0]).toMatchObject({
       why_this_product: "这瓶可承担今天的基础清洁。",
       selection_rationale: { selectedProductId: id, whySelectedToday: "这瓶可承担今天的基础清洁。" },
+      usage_sequence: { prerequisiteStatus: "none", afterSelectedProductIds: [] },
     });
     expect(decision.productFitAssessments.selected[0]).toMatchObject({
       ownedProductId: id,

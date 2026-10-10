@@ -91,6 +91,56 @@ describe("Today Care Planner purpose validator", () => {
     if (result.valid) expect(result.selectedSteps[1]).toEqual({ ownedProductId: candidates[1].ownedProductId, purpose: "basic_moisturization" });
   });
 
+  it("accepts an AI-declared usage prerequisite only when its selected product is earlier", () => {
+    const result = validateCarePlannerDecisionDetailed({
+      ...input,
+      decision: {
+        ...decision,
+        selected_steps: [
+          { ...decision.selected_steps[0], usage_sequence: { prerequisiteStatus: "none" as const, afterSelectedProductIds: [] } },
+          { ...decision.selected_steps[1], usage_sequence: { prerequisiteStatus: "satisfied" as const, afterSelectedProductIds: [candidates[0].ownedProductId] } },
+        ],
+      },
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects a selected product when the AI reports a missing usage prerequisite", () => {
+    const result = validateCarePlannerDecisionDetailed({
+      ...input,
+      decision: {
+        ...decision,
+        selected_steps: [
+          decision.selected_steps[0],
+          { ...decision.selected_steps[1], usage_sequence: { prerequisiteStatus: "unsatisfied" as const, afterSelectedProductIds: [] } },
+        ],
+      },
+    });
+    expect(result).toMatchObject({
+      valid: false,
+      reason: "USAGE_PREREQUISITE_UNSATISFIED",
+      affectedStepIndex: 1,
+    });
+  });
+
+  it("rejects an AI-declared prerequisite that is absent or appears later", () => {
+    const result = validateCarePlannerDecisionDetailed({
+      ...input,
+      decision: {
+        ...decision,
+        selected_steps: [
+          { ...decision.selected_steps[0], usage_sequence: { prerequisiteStatus: "satisfied" as const, afterSelectedProductIds: [candidates[1].ownedProductId] } },
+          decision.selected_steps[1],
+        ],
+      },
+    });
+    expect(result).toMatchObject({
+      valid: false,
+      reason: "USAGE_SEQUENCE_ORDER_INVALID",
+      affectedStepIndex: 0,
+    });
+  });
+
   it("validates an explicit scoped preference reference without deciding the soft preference", () => {
     const preference = { scope: "routine_role" as const, period: "am" as const, routine_role: "cleanser" as const, polarity: "avoid" as const, preferenceRef: "routine_role:am:cleanser" };
     const missingReference = validateCarePlannerDecisionDetailed({
@@ -192,7 +242,7 @@ describe("Today Care Planner purpose validator", () => {
     }
   });
 
-  it("reorders any product with an explicit last-skincare-step instruction after leave-on steps", () => {
+  it("does not override the Planner's order with product-type or keyword rules", () => {
     const genericFilmFormingTreatment: CarePlannerInput["eligibleProducts"][number] = {
       ownedProductId: "50000000-0000-4000-8000-000000000003",
       displayName: "通用成膜局部护理",
@@ -250,13 +300,9 @@ describe("Today Care Planner purpose validator", () => {
     if (result.valid) {
       expect(result.decision.selected_steps.map((step) => step.ownedProductId)).toEqual([
         candidates[0].ownedProductId,
-        candidates[1].ownedProductId,
         genericFilmFormingTreatment.ownedProductId,
+        candidates[1].ownedProductId,
       ]);
-      expect(result.warnings).toContainEqual({
-        code: "USAGE_ORDER_REORDERED",
-        ids: [genericFilmFormingTreatment.ownedProductId],
-      });
     }
   });
 

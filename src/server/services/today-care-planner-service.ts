@@ -38,6 +38,10 @@ const selectionRationaleSchema = z.object({
   /** Validator-owned presentation boundary; providers never choose it. */
   comparisonMode: z.enum(["strong", "lightweight_contextual"]).nullable().optional(),
 }).strict();
+const usageSequenceSchema = z.object({
+  prerequisiteStatus: z.enum(["none", "satisfied", "unsatisfied"]),
+  afterSelectedProductIds: z.array(z.uuid()).max(7),
+}).strict();
 const topAlternativeFitSchema = z.object({
   // Alternatives never decide persistence. Accept a recoverable provider
   // formatting defect here so validation can drop just that comparison.
@@ -60,7 +64,7 @@ const candidateComparisonSchema = z.object({
 }).strict();
 export const carePlannerDecisionSchema = z.object({
   strategy_summary: z.string().trim().min(1).max(240),
-  selected_steps: z.array(z.object({ ownedProductId: z.uuid(), purpose: z.enum(CARE_STEP_PURPOSES), why_today: z.string().trim().min(1).max(180), why_this_product: z.string().trim().min(1).max(180), value_if_removed: compactText(160).optional(), evidence_refs: z.array(z.string().trim().min(1).max(120)).max(6).default([]), preference_refs: z.array(z.string().trim().min(1).max(100)).max(6).optional(), selection_rationale: selectionRationaleSchema.optional() })).min(1).max(8),
+  selected_steps: z.array(z.object({ ownedProductId: z.uuid(), purpose: z.enum(CARE_STEP_PURPOSES), why_today: z.string().trim().min(1).max(180), why_this_product: z.string().trim().min(1).max(180), value_if_removed: compactText(160).optional(), evidence_refs: z.array(z.string().trim().min(1).max(120)).max(6).default([]), preference_refs: z.array(z.string().trim().min(1).max(100)).max(6).optional(), selection_rationale: selectionRationaleSchema.optional(), usage_sequence: usageSequenceSchema.optional() })).min(1).max(8),
   unresolved_needs: z.array(z.string().trim().min(1).max(180)).max(6),
   strategy: strategySchema,
   usedGuidanceIds: z.array(z.string().regex(/^GUIDE-/)).max(6),
@@ -94,6 +98,7 @@ export const productionMinimalCarePlannerDecisionSchema = z.object({
       relevantDifferences: z.array(z.string().trim().min(1).max(180)).max(3).default([]),
       certainty: z.enum(["clear", "uncertain"]),
     }).strict(),
+    usage_sequence: usageSequenceSchema,
   }).strict()).min(1).max(8),
   unresolved_needs: z.array(z.string().trim().min(1).max(180)).max(6),
   strategy: strategySchema,
@@ -138,6 +143,7 @@ export function projectProductionMinimalCarePlannerDecision(
         whySelectedToday: step.whySelectedToday,
         certainty: step.selection_rationale.certainty,
       },
+      usage_sequence: step.usage_sequence,
     })),
     productFitAssessments: {
       selected: raw.selected_steps.map((step) => ({
@@ -257,9 +263,7 @@ export type CarePlannerValidationWarning = {
     | "COMPARISON_LANGUAGE_SANITIZED"
     | "PRODUCT_NARRATIVE_SANITIZED"
     | "PURPOSE_OMISSION_DROPPED"
-    | "POTENTIAL_REDUNDANCY"
-    | "USAGE_ORDER_REORDERED"
-    | "USAGE_ORDER_CONFLICT";
+    | "POTENTIAL_REDUNDANCY";
   ids: string[];
 };
 
@@ -416,7 +420,39 @@ export function validateCarePlannerDecisionDetailed(input: { decision: CarePlann
     ids.add(step.ownedProductId);
   }
 
-  let selectedStepsAfterRedundancy = [...input.decision.selected_steps];
+  for (const [stepIndex, step] of input.decision.selected_steps.entries()) {
+    const sequence = step.usage_sequence;
+    // Legacy decisions may not carry this Planner-owned audit. Every new
+    // Production-Minimal response does, and is validated without inferring a
+    // universal skincare order in application code.
+    if (!sequence) continue;
+    if (sequence.prerequisiteStatus === "unsatisfied") {
+      return fail("USAGE_PREREQUISITE_UNSATISFIED", {
+        purpose: step.purpose as CareStepPurpose,
+        stepIndex,
+      });
+    }
+    if (
+      (sequence.prerequisiteStatus === "none" && sequence.afterSelectedProductIds.length > 0)
+      || (sequence.prerequisiteStatus === "satisfied" && sequence.afterSelectedProductIds.length === 0)
+    ) {
+      return fail("USAGE_SEQUENCE_AUDIT_INVALID", {
+        purpose: step.purpose as CareStepPurpose,
+        stepIndex,
+      });
+    }
+    const priorSelectedIds = new Set(
+      input.decision.selected_steps.slice(0, stepIndex).map((selected) => selected.ownedProductId),
+    );
+    if (sequence.afterSelectedProductIds.some((id) => !priorSelectedIds.has(id))) {
+      return fail("USAGE_SEQUENCE_ORDER_INVALID", {
+        purpose: step.purpose as CareStepPurpose,
+        stepIndex,
+      });
+    }
+  }
+
+  const selectedStepsAfterRedundancy = [...input.decision.selected_steps];
   for (const purpose of CARE_STEP_PURPOSES) {
     const purposeSteps = selectedStepsAfterRedundancy.filter((step) => step.purpose === purpose);
     const competitors = strongComparisonCandidatesByPurpose.get(purpose) ?? [];
@@ -440,27 +476,6 @@ export function validateCarePlannerDecisionDetailed(input: { decision: CarePlann
       purpose: affectedStep?.purpose as CareStepPurpose | undefined,
       stepIndex: input.maxSteps,
     });
-  }
-
-  const usageOrder = enforceExplicitUsageOrder({
-    steps: selectedStepsAfterRedundancy,
-    candidateById,
-    period: input.period,
-  });
-  if (usageOrder.conflictIds.length > 0) {
-    const conflictIds = usageOrder.conflictIds as string[];
-    warnings.push({ code: "USAGE_ORDER_CONFLICT", ids: conflictIds });
-    const affectedStepIndex = selectedStepsAfterRedundancy.findIndex((step) =>
-      conflictIds.includes(step.ownedProductId));
-    const affectedStep = selectedStepsAfterRedundancy[affectedStepIndex];
-    return fail("USAGE_ORDER_CONFLICT", {
-      purpose: affectedStep?.purpose as CareStepPurpose | undefined,
-      ...(affectedStepIndex >= 0 ? { stepIndex: affectedStepIndex } : {}),
-    });
-  }
-  selectedStepsAfterRedundancy = usageOrder.steps;
-  if (usageOrder.reorderedIds.length > 0) {
-    warnings.push({ code: "USAGE_ORDER_REORDERED", ids: usageOrder.reorderedIds });
   }
 
   const selectedProductIds = new Set(selectedStepsAfterRedundancy.map((step) => step.ownedProductId));
@@ -694,73 +709,6 @@ function validatePurposeOmissions(input: {
             : null;
     return reason ? [{ purpose, reason }] : [];
   });
-}
-
-type SelectedPlannerStep = CarePlannerDecision["selected_steps"][number];
-
-/**
- * This is deliberately a small contract parser, not natural-language ranking.
- * It acts only on source-backed `usage.instructions` that state an unambiguous
- * sequence constraint. Local application (for example, \"局部点涂\") does not
- * create an ordering constraint.
- */
-function enforceExplicitUsageOrder(input: {
-  steps: SelectedPlannerStep[];
-  candidateById: Map<string, CarePlannerInput["eligibleProducts"][number]>;
-  period: RoutinePeriod | undefined;
-}) {
-  const constraints = new Map<string, { afterCleansing: boolean; lastLeaveOn: boolean }>();
-  for (const step of input.steps) {
-    const instructions = input.candidateById.get(step.ownedProductId)?.productEvidence.usage?.instructions ?? [];
-    const joined = instructions.join(" ");
-    const afterCleansing = /洁面(?:后|之后)(?:使用|涂抹|应用)?/u.test(joined);
-    const explicitLastSkincareStep = /护肤(?:流程)?(?:的)?最后一步/u.test(joined);
-    const sunscreenMorningLastStep = input.period === "am"
-      && step.purpose === "sun_protection"
-      && /(?:防晒(?:为|是)?早间最后一步|早间最后一步(?:为|是)?防晒)/u.test(joined);
-    constraints.set(step.ownedProductId, {
-      afterCleansing,
-      lastLeaveOn: explicitLastSkincareStep || sunscreenMorningLastStep,
-    });
-  }
-
-  const lastLeaveOnIds = input.steps
-    .filter((step) => constraints.get(step.ownedProductId)?.lastLeaveOn)
-    .map((step) => step.ownedProductId);
-  if (lastLeaveOnIds.length > 1) {
-    return { steps: input.steps, reorderedIds: [], conflictIds: lastLeaveOnIds };
-  }
-
-  const ordered = [...input.steps];
-  const reorderedIds = new Set<string>();
-  for (const step of [...ordered]) {
-    if (!constraints.get(step.ownedProductId)?.afterCleansing) continue;
-    const lastCleansingIndex = ordered.reduce(
-      (index, item, currentIndex) => item.purpose === "cleansing" ? currentIndex : index,
-      -1,
-    );
-    const currentIndex = ordered.findIndex((item) => item.ownedProductId === step.ownedProductId);
-    if (lastCleansingIndex >= 0 && currentIndex < lastCleansingIndex) {
-      ordered.splice(currentIndex, 1);
-      ordered.splice(lastCleansingIndex, 0, step);
-      reorderedIds.add(step.ownedProductId);
-    }
-  }
-
-  const lastLeaveOnId = lastLeaveOnIds[0];
-  if (lastLeaveOnId) {
-    const currentIndex = ordered.findIndex((step) => step.ownedProductId === lastLeaveOnId);
-    const lastLeaveOnIndex = ordered.reduce(
-      (index, step, currentIndex) => step.purpose !== "cleansing" ? currentIndex : index,
-      -1,
-    );
-    if (currentIndex >= 0 && currentIndex < lastLeaveOnIndex) {
-      const [lastStep] = ordered.splice(currentIndex, 1);
-      ordered.push(lastStep!);
-      reorderedIds.add(lastLeaveOnId);
-    }
-  }
-  return { steps: ordered, reorderedIds: [...reorderedIds], conflictIds: [] };
 }
 
 function sanitizeSelectionRationale(input: {
