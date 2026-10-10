@@ -60,6 +60,8 @@ describe("Volcengine Today Care Planner provider", () => {
     expect(request.instructions).toContain("It does not apply to another period or become dislike of any specific product");
     expect(request.instructions).toContain("texturePreferences are soft preferences only");
     expect(request.instructions).toContain("skinGoals are long-term priorities");
+    expect(request.instructions).toContain("selected_steps array order is the final executable application order");
+    expect(request.instructions).toContain("do not assume a universal fixed skincare order");
     expect(request.instructions).toContain("selection_rationale contains only candidateIds, selectedProductId, relevantDifferences, whySelectedToday, and certainty");
     expect(providerInput).not.toHaveProperty("effectiveSkinState");
     expect(providerInput).not.toHaveProperty("todaySkin");
