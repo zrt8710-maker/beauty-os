@@ -27,4 +27,14 @@ describe("structured reply streaming", () => {
     expect(visible.join("")).toBe("先看看脸颊。");
     expect(events).toBe(1);
   });
+
+  it("accepts completed text when a proxy drops the trailing response completion event", async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "response.output_text.delta", delta: "完整回答" })}\n\n`));
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "response.output_text.done" })}\n\n`));
+      controller.close();
+    } });
+    await expect(readStructuredResponseStream(body, { onFirstEvent() {}, onOutputTextDelta() {} })).resolves.toBe("完整回答");
+  });
 });

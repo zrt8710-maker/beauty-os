@@ -36,6 +36,33 @@ describe("Volcengine Skin Conversation provider", () => {
     expect(result).toMatchObject({ reply, assessments: [] });
   });
 
+  it("retries once without streaming when the first request fails before any reply is visible", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response("temporarily unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ output_text: "脸颊泛红的话，有没有同时觉得发热或刺痛？" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    const provider = createVolcengineSkinConversationProvider({ apiKey: "test-key", model: "test", baseUrl: "https://example.test/responses", fetchImpl });
+    const deltas: string[] = [];
+    await expect(provider.extract({ message: "今天脸颊有点泛红", active_turn_context: [], recorded_date: "2026-10-11", existing_checkin: null, profile_context: null }, { onReplyDelta: (delta) => deltas.push(delta) })).resolves.toMatchObject({ reply: "脸颊泛红的话，有没有同时觉得发热或刺痛？" });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(String((fetchImpl.mock.calls[0] as [string, RequestInit])[1].body))).toMatchObject({ stream: true });
+    expect(JSON.parse(String((fetchImpl.mock.calls[1] as [string, RequestInit])[1].body))).toMatchObject({ stream: false });
+    expect(deltas).toEqual([]);
+  });
+
+  it("does not retry after a partial reply has already become visible", async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "response.output_text.delta", delta: "先看看脸颊" })}\n\n`));
+      controller.close();
+    } });
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }));
+    const provider = createVolcengineSkinConversationProvider({ apiKey: "test-key", model: "test", baseUrl: "https://example.test/responses", fetchImpl });
+    const deltas: string[] = [];
+    await expect(provider.extract({ message: "脸颊有点泛红", active_turn_context: [], recorded_date: "2026-10-11", existing_checkin: null, profile_context: null }, { onReplyDelta: (delta) => deltas.push(delta) })).rejects.toThrow("invalid response");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(deltas.join("")).toBe("先看看脸颊");
+  });
+
   it("keeps T-zone oiliness usable when the model includes unsupported optional attributes", () => {
     const value = sanitizeProviderOutput({ ...output, readiness: "ready", clarification: null, daily_state: { version: 2, summary: "今天 T 区中度出油，脸颊一点点。", concerns: [{ kind: "oiliness", status: "present", areas: ["t_zone", "cheeks"], attributes: { severity: "moderate", amount: "some", distribution: "localized" }, user_wording: ["T区中度出油，脸颊一点点"], source: ["conversation"] }] } }) as typeof output;
     expect((value.daily_state as unknown as { concerns: Array<{ attributes: Record<string, unknown> }> }).concerns[0].attributes).toEqual({ severity: "moderate" });

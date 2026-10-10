@@ -121,6 +121,7 @@ export async function readStructuredResponseStream(
   let outputText = "";
   let receivedEvent = false;
   let completed = false;
+  let outputTextCompleted = false;
 
   while (!completed) {
     const read = await reader.read();
@@ -140,11 +141,15 @@ export async function readStructuredResponseStream(
         outputText += event.delta;
         callbacks.onOutputTextDelta(event.delta);
       }
+      if (event.type === "response.output_text.done") outputTextCompleted = true;
       if (event.type === "response.completed") completed = true;
     }
   }
 
-  if (!receivedEvent || !completed || !outputText.trim()) throw new Error("INCOMPLETE_SKIN_CONVERSATION_STREAM");
+  // Some proxies can close the stream after the provider's text-complete event
+  // while dropping the trailing response-complete frame. The text is already a
+  // complete model response in that case and remains safe to validate normally.
+  if (!receivedEvent || (!completed && !outputTextCompleted) || !outputText.trim()) throw new Error("INCOMPLETE_SKIN_CONVERSATION_STREAM");
   return outputText;
 }
 

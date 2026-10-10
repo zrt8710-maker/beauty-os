@@ -34,32 +34,65 @@ export function createVolcengineSkinConversationProvider(options: { apiKey: stri
     const finalizing = input.finalize_requested === true;
     const inputForModel = finalizing ? modelInput(input) : naturalReplyInput(input);
     callbacks?.context_assembly?.();
-    let response: Response;
-    try {
-      callbacks?.provider_request_started?.();
-      response = await fetchImpl(options.baseUrl, { method: "POST", headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json", Accept: "text/event-stream" }, body: JSON.stringify({
+    const requestBody = {
         model: options.model,
         store: false,
-        stream: true,
         thinking: { type: "disabled" },
         instructions: finalizing ? SKIN_ASSESSMENT_FRAMEWORK_PROMPT : SKIN_CONVERSATION_REPLY_PROMPT,
         input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(inputForModel) }] }],
         ...(finalizing ? { text: { format: { type: "json_schema", name: "skin_conversation_assessment", strict: true, schema: responseSchema } } } : {}),
         max_output_tokens: finalizing ? 1800 : 450,
-      }) });
-    } catch (error) { throw new SkinConversationProviderError("Skin conversation provider network request failed.", "network"); }
-    if (!response.ok || response.body === null) throw new SkinConversationProviderError(`Skin conversation provider failed (${response.status}).`, "http");
+      };
+    callbacks?.provider_request_started?.();
+    let forwardedReply = false;
     try {
+      const outputText = await requestOutputText(true);
+      return parseOutput(outputText);
+    } catch (firstError) {
+      // Retry only before anything became user-visible. This handles a dropped
+      // provider/proxy stream without duplicating a partially displayed reply.
+      if (forwardedReply) throw toProviderError(firstError);
+      try {
+        const outputText = await requestOutputText(false);
+        return parseOutput(outputText);
+      } catch (fallbackError) {
+        throw toProviderError(fallbackError);
+      }
+    }
+
+    async function requestOutputText(stream: boolean) {
+      let response: Response;
+      try {
+        response = await fetchImpl(options.baseUrl, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json", Accept: stream ? "text/event-stream" : "application/json" },
+          body: JSON.stringify({ ...requestBody, stream }),
+        });
+      } catch {
+        throw new SkinConversationProviderError("Skin conversation provider network request failed.", "network");
+      }
+      if (!response.ok || response.body === null) throw new SkinConversationProviderError(`Skin conversation provider failed (${response.status}).`, "http");
+      if (!stream || !response.headers.get("content-type")?.includes("text/event-stream")) {
+        return outputTextFromResponse(await response.json() as { output_text?: unknown; output?: unknown });
+      }
       const replyExtractor = finalizing ? new IncrementalReplyJsonExtractor() : null;
-      const outputText = response.headers.get("content-type")?.includes("text/event-stream")
-        ? await readStructuredResponseStream(response.body, {
+      return readStructuredResponseStream(response.body, {
           onFirstEvent: () => callbacks?.provider_first_event?.(),
           onOutputTextDelta: (delta) => {
-            if (replyExtractor) for (const replyDelta of replyExtractor.push(delta)) callbacks?.onReplyDelta?.(replyDelta);
-            else callbacks?.onReplyDelta?.(delta);
+            if (replyExtractor) {
+              for (const replyDelta of replyExtractor.push(delta)) {
+                forwardedReply = true;
+                callbacks?.onReplyDelta?.(replyDelta);
+              }
+            } else {
+              forwardedReply = true;
+              callbacks?.onReplyDelta?.(delta);
+            }
           },
-        })
-        : outputTextFromResponse(await response.json() as { output_text?: unknown; output?: unknown });
+        });
+    }
+
+    function parseOutput(outputText: string | null) {
       if (!outputText) throw new Error("Skin conversation provider returned no output.");
       if (!finalizing) {
         const result = parseConversationFirstModelOutput({ reply: outputText.trim() });
@@ -71,10 +104,14 @@ export function createVolcengineSkinConversationProvider(options: { apiKey: stri
       const result = parseConversationFirstRawOutput(candidateText);
       callbacks?.provider_completed?.();
       return result;
-    } catch (error) {
-      throw new SkinConversationProviderError("Skin conversation provider returned an invalid structured response.", "response");
     }
   } };
+}
+
+function toProviderError(error: unknown) {
+  return error instanceof SkinConversationProviderError
+    ? error
+    : new SkinConversationProviderError("Skin conversation provider returned an invalid response.", "response");
 }
 
 export function createConfiguredVolcengineSkinConversationProvider(): SkinConversationProvider | null {
