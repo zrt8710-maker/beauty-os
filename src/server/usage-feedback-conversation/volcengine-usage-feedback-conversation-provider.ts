@@ -1,5 +1,5 @@
 import "server-only";
-import { providerRequestSignal } from "@/server/integrations/provider-request-timeout";
+import { fetchProviderWithEarlyRetry, providerRequestSignal } from "@/server/integrations/provider-request-timeout";
 
 import type { UsageFeedbackConversationProvider } from "@/server/services/usage-feedback-conversation-service";
 
@@ -49,7 +49,19 @@ export function createConfiguredVolcengineUsageFeedbackConversationProvider(): U
 export function createVolcengineUsageFeedbackConversationProvider(options: { apiKey: string; model: string; baseUrl: string; fetchImpl?: typeof fetch; timeoutMs?: number }): UsageFeedbackConversationProvider {
   const fetchImpl = options.fetchImpl ?? fetch;
   return { async converse(input) {
-    const response = await fetchImpl(options.baseUrl, { method: "POST", headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json" }, signal: providerRequestSignal(options.timeoutMs), body: JSON.stringify({ model: options.model, store: false, thinking: { type: "disabled" }, instructions, input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(input) }] }], text: { format: { type: "json_schema", name: "usage_feedback_conversation", strict: true, schema } }, max_output_tokens: 700 }) });
+    const requestBody = JSON.stringify({ model: options.model, store: false, thinking: { type: "disabled" }, instructions, input: [{ role: "user", content: [{ type: "input_text", text: JSON.stringify(input) }] }], text: { format: { type: "json_schema", name: "usage_feedback_conversation", strict: true, schema } }, max_output_tokens: 700 });
+    const response = await fetchProviderWithEarlyRetry({
+      fetchImpl,
+      url: options.baseUrl,
+      maxAttempts: 3,
+      retryCutoffMs: 20_000,
+      createInit: () => ({
+        method: "POST",
+        headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json" },
+        signal: providerRequestSignal(options.timeoutMs),
+        body: requestBody,
+      }),
+    });
     if (!response.ok) throw new Error("USAGE_FEEDBACK_PROVIDER_UNAVAILABLE");
     const payload = await response.json() as { output_text?: unknown; output?: Array<{ content?: Array<{ text?: unknown }> }> };
     const output = typeof payload.output_text === "string" ? payload.output_text : payload.output?.flatMap((item) => item.content ?? []).find((item) => typeof item.text === "string")?.text;

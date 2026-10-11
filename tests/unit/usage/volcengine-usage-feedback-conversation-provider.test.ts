@@ -54,6 +54,26 @@ describe("Volcengine usage-feedback conversation provider", () => {
     }));
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+
+  it("retries early transport failures before returning one feedback reply", async () => {
+    const fetchImpl = vi.fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed", { cause: { code: "ECONNRESET" } }))
+      .mockResolvedValueOnce(new Response("upstream unavailable", { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        output_text: JSON.stringify({ reply: "听起来这次整体还不错。", draft: null }),
+      }), { status: 200 }));
+    const provider = createVolcengineUsageFeedbackConversationProvider({
+      apiKey: "key", model: "model", baseUrl: "https://example.test", fetchImpl,
+    });
+
+    await expect(provider.converse(input("整体还不错"))).resolves.toEqual({
+      reply: "听起来这次整体还不错。",
+      draft: null,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl.mock.calls[1]?.[1]?.body).toBe(fetchImpl.mock.calls[0]?.[1]?.body);
+    expect(fetchImpl.mock.calls[2]?.[1]?.body).toBe(fetchImpl.mock.calls[0]?.[1]?.body);
+  });
 });
 
 function input(message: string) {

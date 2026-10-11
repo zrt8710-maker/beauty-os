@@ -122,6 +122,21 @@ describe("Volcengine Today user narrative provider", () => {
     await expect(provider.narrate(input)).resolves.toEqual({ entries: [], purposeOmissions: [] });
   });
 
+  it("retries a transient provider response before producing the narrative", async () => {
+    const fetchImpl = vi.fn()
+      .mockResolvedValueOnce(new Response("temporary", { status: 502 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        output_text: JSON.stringify({ entries: [], purposeOmissions: [] }),
+      }), { status: 200 }));
+    const provider = createVolcengineTodayUserNarrativeProvider({
+      apiKey: "test-key", model: "test-model", baseUrl: "https://example.test", fetchImpl,
+    });
+
+    await expect(provider.narrate(input)).resolves.toEqual({ entries: [], purposeOmissions: [] });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl.mock.calls[1]?.[1]?.body).toBe(fetchImpl.mock.calls[0]?.[1]?.body);
+  });
+
   it("classifies a HTTP 200 truncated output without attempting another model call", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       output_text: '{"entries":[{"ownedProductId":"',

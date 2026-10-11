@@ -1,5 +1,5 @@
 import "server-only";
-import { providerRequestSignal } from "@/server/integrations/provider-request-timeout";
+import { fetchProviderWithEarlyRetry, providerRequestSignal } from "@/server/integrations/provider-request-timeout";
 import {
   productionMinimalCarePlannerDecisionSchema,
   projectProductionMinimalCarePlannerDecision,
@@ -30,7 +30,6 @@ export function createVolcengineTodayCarePlannerProvider(options: { apiKey: stri
     ? "The response schema is authoritative: selected_steps has no role, and selection_rationale contains only candidateIds, selectedProductId, relevantDifferences, whySelectedToday, and certainty. Put any alternative-specific comparison wording only in candidateComparisons.comparisonReason. Copy only applicable supplied preferenceRef values into preference_refs."
     : "The response schema is authoritative. For every selected step, return why_today for why this step is needed today; return whySelectedToday for why this owned product is chosen today; cite only supplied evidence_refs, relevantSkinSignalIds, relevantWeatherSignalIds, and applicable preferenceRef values in preference_refs. selection_rationale contains only real candidateIds, relevantDifferences, and certainty. Return candidateComparisons only for real comparisons, using its supplied membership and mode fields. notNeededPurposes may list only current, unselected purposes in the daily care scope that you judge are not needed today. Do not list step limits, unavailable evidence, or hard restrictions; those are determined after validation. Do not mention individual unselected products.";
   return { async plan(input: CarePlannerInput) {
-    const startedAt = Date.now();
     const requestInstructions = `${productionInstructions} Every ownedProductId, selection_rationale.candidateIds, candidateComparisons.candidateIds, and candidateComparisons.selectedProductIds must copy a complete UUID verbatim from eligibleProducts[].ownedProductId. Never use a product name, alias, catalog_product_id, products.id, source ref, shortened UUID, or an ID you create yourself. ${outputContractInstructions}`;
     const providerInput = toProviderInput(input);
     const serializedProviderInput = JSON.stringify(providerInput);
@@ -51,31 +50,28 @@ export function createVolcengineTodayCarePlannerProvider(options: { apiKey: stri
       input: providerInput,
       totalSerializedChars: serializedRequestBody.length,
     });
-    let response: Response | null = null;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const attemptStartedAt = Date.now();
-      let transportFailure: ReturnType<typeof classifyTransportFailure> | null = null;
-      try {
-        response = await fetchImpl(options.baseUrl, {
+    const response = await fetchProviderWithEarlyRetry({
+      fetchImpl,
+      url: options.baseUrl,
+      maxAttempts: 3,
+      retryCutoffMs: TODAY_CARE_PLANNER_RETRY_CUTOFF_MS,
+      createInit: () => ({
           method: "POST",
           headers: { Authorization: `Bearer ${options.apiKey}`, "Content-Type": "application/json" },
           signal: providerRequestSignal(options.timeoutMs ?? TODAY_CARE_PLANNER_TIMEOUT_MS),
           body: serializedRequestBody,
-        });
-      } catch (error) {
-        transportFailure = classifyTransportFailure(error);
-        const elapsedMs = Date.now() - startedAt;
-        const canRetry = attempt === 1
-          && transportFailure.failure_kind !== "abort_timeout"
-          && elapsedMs <= TODAY_CARE_PLANNER_RETRY_CUTOFF_MS;
-        logProviderRequest(attemptStartedAt, attempt, null, transportFailure, canRetry);
-        if (canRetry) continue;
-        throw error;
-      }
-      logProviderRequest(attemptStartedAt, attempt, response, null, false);
-      break;
-    }
-    if (!response || !response.ok) throw new Error("CARE_PLANNER_UNAVAILABLE");
+      }),
+      onAttempt: ({ attempt, durationMs, response: attemptResponse, error, willRetry }) => {
+        logProviderRequest(
+          durationMs,
+          attempt,
+          attemptResponse,
+          error === null ? null : classifyTransportFailure(error),
+          willRetry,
+        );
+      },
+    });
+    if (!response.ok) throw new Error("CARE_PLANNER_UNAVAILABLE");
     const payload = await response.json() as ProviderPayload;
     const extraction = extractProviderOutput(payload);
     logProviderResponseMetadata("provider_response_metadata", payload, extraction.metadata);
@@ -98,14 +94,13 @@ export function createVolcengineTodayCarePlannerProvider(options: { apiKey: stri
 }
 
 function logProviderRequest(
-  startedAt: number,
+  durationMs: number,
   attempt: number,
   response: Response | null,
   transportFailure: ReturnType<typeof classifyTransportFailure> | null,
   willRetry: boolean,
 ) {
   if (process.env.NODE_ENV !== "development") return;
-  const durationMs = Date.now() - startedAt;
   console.info("[today-care-planner]", {
     stage: "provider_request",
     attempt,
